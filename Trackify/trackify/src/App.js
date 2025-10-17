@@ -15,7 +15,7 @@ function App() {
         <Routes>
           {/* Public route for login */}
           <Route path="/login" element={<Login />} />
-            <Route path="/" element={<LandingPage />} />
+            <Route path="/" element={<Login />} />
             <Route path="/timesheet" element={<TimesheetForm />} />
           {/* Protected route for timesheet form */}
           <Route
