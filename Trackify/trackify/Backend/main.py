@@ -2,14 +2,14 @@ from fastapi import FastAPI, Depends, HTTPException, Query, Header
 from sqlalchemy.orm import Session
 import models, schemas, crud
 from database import engine, Base, get_db
-from schemas import DepartmentCreate, DepartmentResponse, LoginRequest, TokenResponse, LogoutResponse, EmployeeUpdate
+from schemas import DepartmentCreate, DepartmentResponse, LoginRequest, TokenResponse, LogoutResponse, EmployeeUpdate, TimesheetCreate, TimesheetUpdate, TimesheetResponse
 from jose import jwt
 from datetime import datetime, timedelta
 from crud import authenticate_user
 import os
 from fastapi import status
 from jose import JWTError
-from models import Employee as EmployeeModel, Department as DepartmentModel
+from models import Employee as EmployeeModel, Department as DepartmentModel, Timesheet as TimesheetModel
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -126,3 +126,85 @@ def get_mentor_employees(
         employees = [emp for emp in employees if emp.role == role]
     
     return employees
+
+# ---------- Timesheet Endpoints ----------
+@app.post("/timesheets/", response_model=TimesheetResponse)
+def create_timesheet(
+    timesheet: TimesheetCreate,
+    db: Session = Depends(get_db),
+    current_user: EmployeeModel = Depends(get_current_user)
+):
+    """Create a timesheet entry - employees can create their own timesheets."""
+    if current_user.role != "employee":
+        raise HTTPException(status_code=403, detail="Only employees can create timesheets")
+    from datetime import date as dtdate
+    if timesheet.date > dtdate.today():
+        raise HTTPException(status_code=400, detail="Cannot submit timesheet for a future date")
+    try:
+        return crud.create_timesheet(db, current_user.employee_id, timesheet)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/timesheets/{employee_id}/{date}", response_model=TimesheetResponse)
+def get_timesheet(
+    employee_id: str,
+    date: str,
+    db: Session = Depends(get_db),
+    current_user: EmployeeModel = Depends(get_current_user)
+):
+    """Get a specific timesheet entry."""
+    # Check permissions
+    if current_user.role == "employee" and current_user.employee_id != employee_id:
+        raise HTTPException(status_code=403, detail="Employees can only view their own timesheets")
+    elif current_user.role == "mentor":
+        # Check if employee is in mentor's department
+        employee = db.query(EmployeeModel).filter(EmployeeModel.employee_id == employee_id).first()
+        if not employee or employee.department_name != current_user.department_name:
+            raise HTTPException(status_code=403, detail="Mentors can only view timesheets from their department")
+    
+    timesheet = crud.get_timesheet(db, employee_id, date)
+    if not timesheet:
+        raise HTTPException(status_code=404, detail="Timesheet not found")
+    return timesheet
+
+@app.put("/timesheets/{timesheet_id}", response_model=TimesheetResponse)
+def update_timesheet(
+    timesheet_id: int,
+    timesheet_update: TimesheetUpdate,
+    db: Session = Depends(get_db),
+    current_user: EmployeeModel = Depends(get_current_user)
+):
+    """Update a timesheet entry - employees can edit their own timesheets only, mentors/admins with permissions."""
+    timesheet = db.query(TimesheetModel).filter(TimesheetModel.timesheet_id == timesheet_id).first()
+    if not timesheet:
+        raise HTTPException(status_code=404, detail="Timesheet not found")
+    # Permissions:
+    if current_user.role == "employee":
+        if timesheet.employee_id != current_user.employee_id:
+            raise HTTPException(status_code=403, detail="Employees can only edit their own timesheets")
+    elif current_user.role == "mentor":
+        # Check that timesheet employee is in mentor's department
+        employee = db.query(EmployeeModel).filter(EmployeeModel.employee_id == timesheet.employee_id).first()
+        if not employee or employee.department_name != current_user.department_name:
+            raise HTTPException(status_code=403, detail="Mentors can only edit timesheets from their department")
+    # If passed, update
+    try:
+        return crud.update_timesheet(db, timesheet.employee_id, timesheet.date, timesheet_update)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/timesheets/", response_model=list[TimesheetResponse])
+def get_timesheets(
+    db: Session = Depends(get_db),
+    current_user: EmployeeModel = Depends(get_current_user)
+):
+    """Get timesheets based on user role."""
+    if current_user.role == "administrator":
+        # Administrators can view all timesheets
+        return crud.get_all_timesheets(db)
+    elif current_user.role == "mentor":
+        # Mentors can view timesheets from their department
+        return crud.get_mentor_department_timesheets(db, current_user.department_name)
+    else:
+        # Employees can only view their own timesheets
+        return crud.get_employee_timesheets(db, current_user.employee_id)

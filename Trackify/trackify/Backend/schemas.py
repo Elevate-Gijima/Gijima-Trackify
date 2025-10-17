@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
-from models import RoleEnum
+from datetime import date, time
+from models import RoleEnum, StatusEnum
 
 # ---------- Employee Schemas ----------
 class EmployeeCreate(BaseModel):
@@ -51,3 +52,30 @@ class TokenResponse(BaseModel):
 
 class LogoutResponse(BaseModel):
     message: str
+
+# ---------- Timesheet Schemas ----------
+class TimesheetCreate(BaseModel):
+    date: date
+    description: str
+    clock_in: time
+    clock_out: time
+
+class TimesheetUpdate(BaseModel):
+    description: Optional[str] = None
+    clock_in: Optional[time] = None
+    clock_out: Optional[time] = None
+    total_hours: Optional[float] = None
+    status: Optional[StatusEnum] = None
+
+class TimesheetResponse(BaseModel):
+    timesheet_id: int
+    employee_id: str
+    date: date
+    description: str
+    clock_in: time
+    clock_out: time
+    total_hours: Optional[float] = None
+    status: StatusEnum
+
+    class Config:
+        from_attributes = True
