@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Enum
+from sqlalchemy import Column, Integer, String, Enum, Date, Time, DECIMAL, Text, ForeignKey
 from database import Base
 import enum
 
@@ -8,6 +8,11 @@ class RoleEnum(str, enum.Enum):
     employee = "employee"
     mentor = "mentor"
     administrator = "administrator"
+
+class StatusEnum(str, enum.Enum):
+    pending = "pending"
+    approved = "approved"
+    rejected = "rejected"
 
 
 # ---------- DEPARTMENT ----------
@@ -27,3 +32,15 @@ class Employee(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(Enum(RoleEnum), nullable=False)
     department_name = Column(String(100))  # Non-FK, links by name only
+
+# ---------- TIMESHEET ----------
+class Timesheet(Base):
+    __tablename__ = "timesheet"
+    timesheet_id = Column(Integer, primary_key=True, autoincrement=True)
+    employee_id = Column(String(20), ForeignKey("employee.employee_id"))
+    date = Column(Date)
+    description = Column(Text)
+    clock_in = Column(Time)
+    clock_out = Column(Time)
+    total_hours = Column(DECIMAL(5, 2))
+    status = Column(Enum(StatusEnum), default=StatusEnum.pending)
