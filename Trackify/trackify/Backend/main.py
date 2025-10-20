@@ -69,7 +69,7 @@ def get_current_user(Authorization: str = Header(...), db: Session = Depends(get
     return user
 
 def admin_or_mentor_required(current_user: EmployeeModel = Depends(get_current_user)):
-    if current_user.role not in ["administrator", "mentor"]:
+    if current_user.role not in ["admin", "manager"]:
         raise HTTPException(status_code=403, detail="Only admins and mentors can perform this action")
     return current_user
 
@@ -250,34 +250,34 @@ def get_timesheets(
     else:
         # Employees can only view their own timesheets
         return crud.get_employee_timesheets(db, current_user.employee_id)
+from fastapi import Body
+
 @app.put("/employees/{employee_id}/status", response_model=schemas.EmployeeResponse)
 def update_employee_status(
     employee_id: str,
-    status_update: dict = None,  # expects {"status": "Approved"} or {"status": "Rejected"}
+    status_data: dict = Body(...),
     db: Session = Depends(get_db),
-    current_user: EmployeeModel = Depends(admin_or_manager_required)
+    current_user: EmployeeModel = Depends(get_current_user)
 ):
-    """Update the status of an employee (Approve/Reject) - only manager or admin can do this."""
-    
-    if not status_update or "status" not in status_update:
-        raise HTTPException(status_code=400, detail="Missing 'status' field")
-    
-    new_status = status_update["status"]
-    if new_status not in ["Approved", "Rejected"]:
-        raise HTTPException(status_code=400, detail="Status must be 'Approved' or 'Rejected'")
-    
-    # Fetch the employee
+    """
+    Allows MANAGERS and ADMINS to update employee status.
+    """
+    # Only managers or admins can change status
+    if current_user.role not in ["manager", "administrator"]:
+        raise HTTPException(status_code=403, detail="Only managers or administrators can change status.")
+
+    # Get employee from DB
     employee = db.query(EmployeeModel).filter(EmployeeModel.employee_id == employee_id).first()
     if not employee:
-        raise HTTPException(status_code=404, detail="Employee not found")
-    
-    # Only allow manager to update employees in their department
-    if current_user.role == "manager" and employee.department_name != current_user.department_name:
-        raise HTTPException(status_code=403, detail="Cannot update employees outside your department")
-    
-    # Update status
+        raise HTTPException(status_code=404, detail="Employee not found.")
+
+    # Validate and update status
+    new_status = status_data.get("status")
+    if new_status not in ["Approved", "Rejected", "Pending"]:
+        raise HTTPException(status_code=400, detail="Invalid status value.")
+
     employee.status = new_status
     db.commit()
     db.refresh(employee)
-    
+
     return employee
