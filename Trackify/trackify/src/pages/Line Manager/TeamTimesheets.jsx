@@ -1,23 +1,29 @@
 import React, { useState, useEffect } from "react";
 import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography } from "@mui/material";
 
+const API_BASE_URL = "http://localhost:8000"; // Backend base URL
+
 const TeamTimesheets = () => {
   const [employees, setEmployees] = useState([]);
 
-  // Fetch employees from backend
+  // Fetch employees from manager's department
   const fetchEmployees = async () => {
     try {
       const token = localStorage.getItem("access_token");
-      const response = await fetch("http://127.0.0.1:8000/employees/", {
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE_URL}/manager/employees`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
+
       if (!response.ok) throw new Error("Failed to fetch employees");
+
       const data = await response.json();
       setEmployees(data);
     } catch (error) {
-      console.error(error);
+      console.error("Error fetching employees:", error);
     }
   };
 
@@ -25,25 +31,14 @@ const TeamTimesheets = () => {
     fetchEmployees();
   }, []);
 
-  // Handle approval/rejection
+  // Placeholder: handle approval/rejection (needs backend support)
   const handleStatusChange = async (employeeId, newStatus) => {
     try {
       const token = localStorage.getItem("access_token");
-      const response = await fetch(`http://127.0.0.1:8000/employees/${employeeId}/status`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
+      if (!token) return;
 
-      if (!response.ok) throw new Error("Failed to update status");
-
-      const updatedEmployee = await response.json();
-      setEmployees((prev) =>
-        prev.map((emp) => (emp.employee_id === updatedEmployee.employee_id ? updatedEmployee : emp))
-      );
+      // TODO: Implement backend endpoint /employees/{employeeId}/status
+      console.log(`Would update ${employeeId} status to ${newStatus}`);
     } catch (error) {
       console.error(error);
     }
@@ -52,7 +47,7 @@ const TeamTimesheets = () => {
   return (
     <Box sx={{ p: 4 }}>
       <Typography variant="h5" gutterBottom>
-        Employee Approval Dashboard
+        My Team
       </Typography>
 
       <TableContainer component={Paper}>
@@ -62,6 +57,7 @@ const TeamTimesheets = () => {
               <TableCell><strong>ID</strong></TableCell>
               <TableCell><strong>Name</strong></TableCell>
               <TableCell><strong>Department</strong></TableCell>
+              <TableCell><strong>Role</strong></TableCell>
               <TableCell><strong>Status</strong></TableCell>
               <TableCell><strong>Actions</strong></TableCell>
             </TableRow>
@@ -73,6 +69,7 @@ const TeamTimesheets = () => {
                 <TableCell>{emp.employee_id}</TableCell>
                 <TableCell>{emp.name}</TableCell>
                 <TableCell>{emp.department_name}</TableCell>
+                <TableCell>{emp.role}</TableCell>
                 <TableCell>
                   <Typography
                     sx={{
