@@ -7,7 +7,7 @@ import { Box, TextField, Button, Typography, Paper } from '@mui/material';
 const navy = '#001f3f';
 
 const Login = () => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -19,10 +19,13 @@ const Login = () => {
       const response = await fetch('http://127.0.0.1:8000/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }), // Must match backend
       });
 
-      if (!response.ok) throw new Error('Invalid credentials');
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Login failed');
+      }
 
       const data = await response.json();
 
@@ -30,6 +33,7 @@ const Login = () => {
       localStorage.setItem('access_token', data.access_token);
       localStorage.setItem('role', data.role);
       localStorage.setItem('name', data.name);
+      localStorage.setItem('surname', data.surname);
 
       login(); // Update auth context
 
@@ -80,12 +84,12 @@ const Login = () => {
 
         <form onSubmit={handleSubmit} noValidate>
           <TextField
-            label="Username"
+            label="Email"
             variant="outlined"
             fullWidth
             margin="normal"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
           <TextField
             label="Password"
