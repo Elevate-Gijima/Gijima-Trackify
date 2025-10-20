@@ -1,15 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from './AuthContext';
-
 import Swal from 'sweetalert2';
-import { 
-  Box, 
-  TextField, 
-  Button, 
-  Typography, 
-  Paper 
-} from '@mui/material';
+import { Box, TextField, Button, Typography, Paper } from '@mui/material';
 
 const navy = '#001f3f';
 
@@ -19,22 +12,48 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (username === 'user' && password === 'password') {
+
+    try {
+      // Call FastAPI /login endpoint
+      const response = await fetch('http://127.0.0.1:8000/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          username: username,
+          password: password,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Invalid credentials');
+      }
+
+      const data = await response.json();
+
+      // Store JWT token locally
+      localStorage.setItem('access_token', data.access_token);
+
+      // Update auth context
       login();
+
       Swal.fire({
         icon: 'success',
         title: 'Login Successful!',
         timer: 1500,
         showConfirmButton: false,
       });
-      navigate('/dashboard');
-    } else {
+
+      // Redirect to dashboard or home page
+      navigate('/home');
+    } catch (error) {
       Swal.fire({
         icon: 'error',
         title: 'Oops...',
-        text: 'Invalid credentials',
+        text: 'Invalid username or password!',
       });
     }
   };
@@ -50,14 +69,14 @@ const Login = () => {
         padding: 2,
       }}
     >
-      <Paper 
-        elevation={6} 
-        sx={{ 
-          padding: 4, 
-          width: 320, 
-          bgcolor: 'white', 
+      <Paper
+        elevation={6}
+        sx={{
+          padding: 4,
+          width: 320,
+          bgcolor: 'white',
           borderRadius: 2,
-          textAlign: 'center'
+          textAlign: 'center',
         }}
       >
         <Typography variant="h5" gutterBottom sx={{ color: navy, fontWeight: 'bold' }}>

@@ -19,6 +19,8 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 
+const API_BASE_URL = "http://localhost:8000"; // ⚙️ Change this if backend runs elsewhere
+
 const TimesheetForm = ({ showOnlyRecords = false, onBack }) => {
   const [formData, setFormData] = useState({
     date: "",
@@ -27,12 +29,34 @@ const TimesheetForm = ({ showOnlyRecords = false, onBack }) => {
     description: "",
   });
   const [records, setRecords] = useState([]);
-  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
   const [editingIndex, setEditingIndex] = useState(null);
 
+  // ✅ Load timesheets from FastAPI on mount
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem("timesheets")) || [];
-    setRecords(saved);
+    const fetchTimesheets = async () => {
+      try {
+        const token = localStorage.getItem("access_token");
+        if (!token) return;
+
+        const response = await fetch(`${API_BASE_URL}/timesheets/`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!response.ok) throw new Error("Failed to load timesheets");
+
+        const data = await response.json();
+        setRecords(data);
+      } catch (err) {
+        console.error("Error fetching timesheets:", err);
+      }
+    };
+
+    fetchTimesheets();
   }, []);
 
   const handleChange = (e) => {
@@ -40,30 +64,82 @@ const TimesheetForm = ({ showOnlyRecords = false, onBack }) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  // ✅ Submit to backend API instead of localStorage
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Clock validation
     if (formData.clockOut <= formData.clockIn) {
-      setSnackbar({ open: true, message: "Clock Out must be after Clock In!", severity: "error" });
+      setSnackbar({
+        open: true,
+        message: "Clock Out must be after Clock In!",
+        severity: "error",
+      });
       return;
     }
 
-    let updatedRecords = [...records];
-    if (editingIndex !== null) {
-      // Update existing record
-      updatedRecords[editingIndex] = formData;
-      setEditingIndex(null);
-    } else {
-      // Add new record
-      updatedRecords.push(formData);
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      setSnackbar({
+        open: true,
+        message: "Please log in first.",
+        severity: "error",
+      });
+      return;
     }
 
-    setRecords(updatedRecords);
-    localStorage.setItem("timesheets", JSON.stringify(updatedRecords));
+    try {
+      let response;
 
-    setSnackbar({ open: true, message: "Timesheet saved successfully!", severity: "success" });
-    setFormData({ date: "", clockIn: "", clockOut: "", description: "" });
+      if (editingIndex !== null) {
+        // PUT request for update
+        const recordToEdit = records[editingIndex];
+        response = await fetch(`${API_BASE_URL}/timesheets/${recordToEdit.timesheet_id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(formData),
+        });
+      } else {
+        // POST request for new entry
+        response = await fetch(`${API_BASE_URL}/timesheets/`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(formData),
+        });
+      }
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || "Failed to save timesheet");
+      }
+
+      const savedRecord = await response.json();
+
+      // Update UI
+      let updatedRecords = [...records];
+      if (editingIndex !== null) {
+        updatedRecords[editingIndex] = savedRecord;
+        setEditingIndex(null);
+      } else {
+        updatedRecords.push(savedRecord);
+      }
+
+      setRecords(updatedRecords);
+      setFormData({ date: "", clockIn: "", clockOut: "", description: "" });
+      setSnackbar({
+        open: true,
+        message: "Timesheet saved successfully!",
+        severity: "success",
+      });
+    } catch (error) {
+      console.error("Error saving timesheet:", error);
+      setSnackbar({ open: true, message: error.message, severity: "error" });
+    }
   };
 
   const handleEdit = (index) => {
@@ -71,11 +147,35 @@ const TimesheetForm = ({ showOnlyRecords = false, onBack }) => {
     setEditingIndex(index);
   };
 
-  const handleDelete = (index) => {
-    const updatedRecords = records.filter((_, idx) => idx !== index);
-    setRecords(updatedRecords);
-    localStorage.setItem("timesheets", JSON.stringify(updatedRecords));
-    setSnackbar({ open: true, message: "Timesheet deleted!", severity: "info" });
+  // ✅ Delete timesheet from backend
+  const handleDelete = async (index) => {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      setSnackbar({
+        open: true,
+        message: "Please log in first.",
+        severity: "error",
+      });
+      return;
+    }
+
+    const recordToDelete = records[index];
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/timesheets/${recordToDelete.timesheet_id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error("Failed to delete timesheet");
+
+      const updatedRecords = records.filter((_, idx) => idx !== index);
+      setRecords(updatedRecords);
+      setSnackbar({ open: true, message: "Timesheet deleted!", severity: "info" });
+    } catch (err) {
+      console.error(err);
+      setSnackbar({ open: true, message: err.message, severity: "error" });
+    }
   };
 
   const handleCloseSnackbar = () => {
