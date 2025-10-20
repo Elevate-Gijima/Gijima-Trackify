@@ -32,7 +32,7 @@ class Employee(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(Enum(RoleEnum), nullable=False)
     department_name = Column(String(100))  # Non-FK, links by name only
-    status = Column(String, default="Pending") 
+   
 # ---------- TIMESHEET ----------
 class Timesheet(Base):
     __tablename__ = "timesheet"
