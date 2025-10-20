@@ -12,9 +12,15 @@ from jose import JWTError
 from models import Employee as EmployeeModel, Department as DepartmentModel, Timesheet as TimesheetModel
 from fastapi.middleware.cors import CORSMiddleware
 
+
+
+app = FastAPI(title="Gijima Timesheet API")
+
 origins = [
     "http://localhost:3000",  # your React frontend
 ]
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,7 +36,6 @@ Base.metadata.create_all(bind=engine)
 
 
 
-app = FastAPI(title="Gijima Timesheet API")
 
 
 origins=[
@@ -96,7 +101,8 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         "access_token": encoded_jwt,
         "token_type": "bearer",
         "role": user.role,          # Add this
-        "name": user.full_name      # Add this (or user.name if that’s your field)
+        "name": user.name,
+        "surname": user.surname      # Add this (or user.name if that’s your field)
     }
 
 
