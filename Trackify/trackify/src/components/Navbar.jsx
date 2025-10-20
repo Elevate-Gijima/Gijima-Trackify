@@ -1,11 +1,12 @@
 import React from "react";
 import { AppBar, Toolbar, Typography, Button, Box, Chip } from "@mui/material";
-import { Link } from "react-router-dom";
-import AccessTimeIcon from "@mui/icons-material/AccessTime"; // clock icon
+import { Link, useNavigate } from "react-router-dom";
+import AccessTimeIcon from "@mui/icons-material/AccessTime";
 
 const Navbar = () => {
   const role = localStorage.getItem("role") || "employee";
-  const fullName = localStorage.getItem("name") || "Employee Name"; // stored name after login
+  const fullName = localStorage.getItem("name") || "Employee Name";
+  const navigate = useNavigate();
 
   // Extract initials (e.g., "Mavasa Musa" -> "MM")
   const getInitials = (name) => {
@@ -29,7 +30,6 @@ const Navbar = () => {
     admin: [
       { path: "/", label: "Dashboard" },
       { path: "/users", label: "User Management" },
-      { path: "/settings", label: "Settings" },
       { path: "/reports", label: "Reports" },
     ],
   };
@@ -52,12 +52,7 @@ const Navbar = () => {
             <AccessTimeIcon sx={{ fontSize: 30, color: "navy" }} />
             <Typography
               variant="h6"
-              component="div"
-              sx={{
-                fontWeight: "bold",
-                letterSpacing: 1,
-                color: "navy",
-              }}
+              sx={{ fontWeight: "bold", letterSpacing: 1, color: "navy" }}
             >
               Trackify
             </Typography>
@@ -74,9 +69,7 @@ const Navbar = () => {
                   textTransform: "none",
                   fontWeight: 500,
                   color: "navy",
-                  "&:hover": {
-                    backgroundColor: "rgba(0, 0, 128, 0.08)", // light navy hover
-                  },
+                  "&:hover": { backgroundColor: "rgba(0, 0, 128, 0.08)" },
                 }}
               >
                 {item.label}
@@ -85,8 +78,24 @@ const Navbar = () => {
           </Box>
         </Box>
 
-        {/* Right section: initials + logout */}
+        {/* Right section */}
         <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          {/* ✅ Add Employee button (only for Admins) */}
+          {role === "admin" && (
+            <Button
+              variant="contained"
+              color="primary"
+              sx={{
+                textTransform: "none",
+                backgroundColor: "navy",
+                "&:hover": { backgroundColor: "#001a66" },
+              }}
+              onClick={() => navigate("/add-employee")}
+            >
+              ➕ Add Employee
+            </Button>
+          )}
+
           <Chip
             label={initials}
             sx={{
