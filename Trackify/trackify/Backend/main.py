@@ -10,6 +10,20 @@ import os
 from fastapi import status
 from jose import JWTError
 from models import Employee as EmployeeModel, Department as DepartmentModel, Timesheet as TimesheetModel
+from fastapi.middleware.cors import CORSMiddleware
+
+origins = [
+    "http://localhost:3000",  # your React frontend
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,       # List of allowed origins
+    allow_credentials=True,      # Allow cookies, authorization headers
+    allow_methods=["*"],         # Allow all HTTP methods
+    allow_headers=["*"],         # Allow all headers
+)
+
 
 # Create tables
 Base.metadata.create_all(bind=engine)
