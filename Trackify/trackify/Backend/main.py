@@ -150,7 +150,7 @@ def update_employee_details(
 # Department-specific employee endpoint removed - use /mentor/employees instead
 
 # ---------- Mentor's Department Employees ----------
-@app.get("/mentor/employees", response_model=list[schemas.EmployeeResponse])
+@app.get("/manager/employees", response_model=list[schemas.EmployeeResponse])
 def get_mentor_employees(
     role: str = Query(None, description="Filter by employee role (employee, mentor, administrator)"),
     db: Session = Depends(get_db),
