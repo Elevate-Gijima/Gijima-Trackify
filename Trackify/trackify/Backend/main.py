@@ -14,6 +14,10 @@ from models import Employee as EmployeeModel, Department as DepartmentModel, Tim
 # Create tables
 Base.metadata.create_all(bind=engine)
 
+origins=[
+    "http://localhost:3000"
+]
+
 app = FastAPI(title="Gijima Timesheet API")
 
 SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "a_very_secret_key")  # In .env or fallback
