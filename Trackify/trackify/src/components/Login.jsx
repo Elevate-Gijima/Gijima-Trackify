@@ -16,29 +16,22 @@ const Login = () => {
     e.preventDefault();
 
     try {
-      // Call FastAPI /login endpoint
       const response = await fetch('http://127.0.0.1:8000/login', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          username: username,
-          password: password,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
       });
 
-      if (!response.ok) {
-        throw new Error('Invalid credentials');
-      }
+      if (!response.ok) throw new Error('Invalid credentials');
 
       const data = await response.json();
 
-      // Store JWT token locally
+      // Save token, role, name in localStorage
       localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('role', data.role);
+      localStorage.setItem('name', data.name);
 
-      // Update auth context
-      login();
+      login(); // Update auth context
 
       Swal.fire({
         icon: 'success',
@@ -47,13 +40,17 @@ const Login = () => {
         showConfirmButton: false,
       });
 
-      // Redirect to dashboard or home page
-      navigate('/home');
+      // Redirect based on role
+      if (data.role === 'employee') navigate('/home');
+      else if (data.role === 'manager') navigate('/manager');
+      else if (data.role === 'admin') navigate('/admin');
+      else navigate('/home');
+
     } catch (error) {
       Swal.fire({
         icon: 'error',
         title: 'Oops...',
-        text: 'Invalid username or password!',
+        text: error.message,
       });
     }
   };
@@ -69,15 +66,9 @@ const Login = () => {
         padding: 2,
       }}
     >
-      <Paper
-        elevation={6}
-        sx={{
-          padding: 4,
-          width: 320,
-          bgcolor: 'white',
-          borderRadius: 2,
-          textAlign: 'center',
-        }}
+      <Paper 
+        elevation={6} 
+        sx={{ padding: 4, width: 320, bgcolor: 'white', borderRadius: 2, textAlign: 'center' }}
       >
         <Typography variant="h5" gutterBottom sx={{ color: navy, fontWeight: 'bold' }}>
           Welcome to Trackify
@@ -95,16 +86,7 @@ const Login = () => {
             margin="normal"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            sx={{
-              '& label.Mui-focused': { color: navy },
-              '& .MuiOutlinedInput-root': {
-                '&.Mui-focused fieldset': {
-                  borderColor: navy,
-                },
-              },
-            }}
           />
-
           <TextField
             label="Password"
             type="password"
@@ -113,22 +95,8 @@ const Login = () => {
             margin="normal"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            sx={{
-              '& label.Mui-focused': { color: navy },
-              '& .MuiOutlinedInput-root': {
-                '&.Mui-focused fieldset': {
-                  borderColor: navy,
-                },
-              },
-            }}
           />
-
-          <Button
-            type="submit"
-            variant="contained"
-            fullWidth
-            sx={{ mt: 3, bgcolor: navy, '&:hover': { bgcolor: '#003366' } }}
-          >
+          <Button type="submit" variant="contained" fullWidth sx={{ mt: 3, bgcolor: navy }}>
             Login
           </Button>
         </form>

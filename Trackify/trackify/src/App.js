@@ -6,8 +6,9 @@ import Navbar from './components/Navbar';
 import Login from './components/Login';
 import TimesheetForm from './pages/Juniors/TimesheetForm';
 import LandingPage from './pages/Juniors/JuniorHomePage';
+import ManagerDashboard from './pages/Line Manager/TeamTimesheets';
+import AdminDashboard from './pages/Administrator/AdminTimesheets';
 
-// A small wrapper that hides Navbar on login routes
 const AppContent = () => {
   const location = useLocation();
   const hideNavbar = location.pathname === '/login' || location.pathname === '/';
@@ -20,11 +21,11 @@ const AppContent = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Login />} />
 
-        {/* Protected routes */}
+        {/* Employee routes */}
         <Route
           path="/home"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['employee']}>
               <LandingPage />
             </ProtectedRoute>
           }
@@ -32,14 +33,34 @@ const AppContent = () => {
         <Route
           path="/timesheet"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['employee']}>
               <TimesheetForm />
             </ProtectedRoute>
           }
         />
 
+        {/* Manager routes */}
+        <Route
+          path="/manager"
+          element={
+            <ProtectedRoute allowedRoles={['manager']}>
+              <ManagerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Admin routes */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Fallback redirect */}
-        <Route path="*" element={<Navigate to="/home" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </>
   );
