@@ -13,7 +13,7 @@ const TeamTimesheets = () => {
       const token = localStorage.getItem("access_token");
       if (!token) return;
 
-      const response = await fetch(`${API_BASE_URL}/manager/timesheet`, {
+      const response = await fetch(`${API_BASE_URL}/manager/employees`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
