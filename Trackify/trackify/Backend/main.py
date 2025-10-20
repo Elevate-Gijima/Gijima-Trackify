@@ -152,13 +152,13 @@ def update_employee_details(
 # ---------- Mentor's Department Employees ----------
 @app.get("/manager/employees", response_model=list[schemas.EmployeeResponse])
 def get_mentor_employees(
-    role: str = Query(None, description="Filter by employee role (employee, mentor, administrator)"),
+    role: str = Query(None, description="Filter by employee role (employee, manager, admin)"),
     db: Session = Depends(get_db),
     current_user: EmployeeModel = Depends(get_current_user)
 ):
     """Get employees in mentor's department, optionally filtered by role."""
-    if current_user.role != "mentor":
-        raise HTTPException(status_code=403, detail="Only mentors can access this endpoint")
+    if current_user.role != "manager":
+        raise HTTPException(status_code=403, detail="Only managers can access this endpoint")
     
     # Get employees in the mentor's department
     employees = crud.get_employees_by_department(db, current_user.department_name)
