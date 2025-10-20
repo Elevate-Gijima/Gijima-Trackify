@@ -68,15 +68,23 @@ def add_employee(
 
 
 # ---------- Authentication Endpoints ----------
-@app.post("/login", response_model=TokenResponse)
+@app.post("/login")
 def login(request: LoginRequest, db: Session = Depends(get_db)):
     user = crud.authenticate_user(db, request.email, request.password)
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {"sub": user.employee_id, "exp": expire}  # employee_id is string
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return TokenResponse(access_token=encoded_jwt, token_type="bearer")
+
+    return {
+        "access_token": encoded_jwt,
+        "token_type": "bearer",
+        "role": user.role,          # Add this
+        "name": user.full_name      # Add this (or user.name if that’s your field)
+    }
+
 
 @app.post("/logout", response_model=LogoutResponse)
 def logout():
