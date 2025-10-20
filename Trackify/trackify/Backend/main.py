@@ -80,12 +80,15 @@ def admin_or_mentor_required(current_user: EmployeeModel = Depends(get_current_u
 def add_employee(
     employee: schemas.EmployeeCreate,
     db: Session = Depends(get_db),
-    current_user: EmployeeModel = Depends(admin_or_mentor_required)
+    current_user: EmployeeModel = Depends(get_current_user)
 ):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can add employees")
     try:
         return crud.create_employee(db, employee)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 
 # ---------- Authentication Endpoints ----------
@@ -308,6 +311,7 @@ def update_employee_status(
 
     return employee
 
+
 @app.put("/employees/{employee_id}/timesheets/status")
 def update_all_timesheets_status_for_employee(
     employee_id: str,
@@ -348,3 +352,15 @@ def update_all_timesheets_status_for_employee(
     db.commit()
 
     return {"updated": len(timesheets)}
+=======
+@app.get("/employees/approved", response_model=list[schemas.EmployeeResponse])
+def get_approved_employees(
+    db: Session = Depends(get_db),
+    current_user: EmployeeModel = Depends(get_current_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can view approved employees")
+
+    approved_employees = db.query(EmployeeModel).filter(EmployeeModel.status == "approved").all()
+    return approved_employees
+
