@@ -202,7 +202,7 @@ def get_timesheet(
         # Check if employee is in mentor's department
         employee = db.query(EmployeeModel).filter(EmployeeModel.employee_id == employee_id).first()
         if not employee or employee.department_name != current_user.department_name:
-            raise HTTPException(status_code=403, detail="Mentors can only view timesheets from their department")
+            raise HTTPException(status_code=403, detail="Managers can only view timesheets from their department")
     
     timesheet = crud.get_timesheet(db, employee_id, date)
     if not timesheet:
