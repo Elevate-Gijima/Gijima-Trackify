@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from "react";
-import Navbar from "../../components/Navbar";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -18,7 +17,7 @@ import {
   InputLabel,
 } from "@mui/material";
 import { jsPDF } from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 const AdminDashboard = () => {
   const [timesheets, setTimesheets] = useState([]);
@@ -27,14 +26,14 @@ const AdminDashboard = () => {
 
   const API_BASE_URL = "http://127.0.0.1:8000";
 
-  // --- Fetch Timesheets ---
+  // --- Fetch Timesheets (admin enriched endpoint) ---
   const fetchTimesheets = async () => {
     try {
       const token = localStorage.getItem("access_token");
       const url =
         filter === "all"
-          ? `${API_BASE_URL}/timesheets`
-          : `${API_BASE_URL}/timesheets?status=${filter}`;
+          ? `${API_BASE_URL}/admin/timesheets`
+          : `${API_BASE_URL}/admin/timesheets?status=${filter}`;
 
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -72,24 +71,64 @@ const AdminDashboard = () => {
     fetchApprovedEmployees();
   }, []);
 
+  // Group timesheets by employee for display and exports
+  const groupedEmployees = useMemo(() => {
+    const map = new Map();
+    timesheets.forEach((s) => {
+      if (!map.has(s.employee_id)) {
+        map.set(s.employee_id, {
+          employee_id: s.employee_id,
+          name: s.employee_name,
+          surname: s.employee_surname,
+          email: s.employee_email,
+          tasks: [],
+          total: 0,
+        });
+      }
+      const g = map.get(s.employee_id);
+      g.tasks.push({
+        date: s.date,
+        description: s.description,
+        clock_in: s.clock_in,
+        clock_out: s.clock_out,
+        hours: s.hours_worked,
+        status: s.status,
+      });
+      const hrs = parseFloat(s.hours_worked ?? 0);
+      g.total += isNaN(hrs) ? 0 : hrs;
+    });
+    return Array.from(map.values());
+  }, [timesheets]);
+
   // --- Download CSV (only approved timesheets) ---
   const downloadCSV = () => {
-    const approvedSheets = timesheets.filter((s) => s.status === "approved");
+    // Group by employee for export
+    const grouped = new Map();
+    timesheets
+      .filter((s) => s.status === "approved")
+      .forEach((s) => {
+        if (!grouped.has(s.employee_id)) {
+          grouped.set(s.employee_id, {
+            name: s.employee_name,
+            surname: s.employee_surname,
+            email: s.employee_email,
+            tasks: [],
+            total: 0,
+          });
+        }
+        const g = grouped.get(s.employee_id);
+        g.tasks.push(`${s.date}: ${s.description} (${s.clock_in}-${s.clock_out}, ${s.hours_worked}h)`);
+        const hrs = parseFloat(s.hours_worked ?? 0);
+        g.total += isNaN(hrs) ? 0 : hrs;
+      });
+
     const csvRows = [];
-    const headers = ["Name", "Surname", "Email", "Clock In", "Clock Out", "Hours Worked", "Status"];
+    const headers = ["Name", "Surname", "Email", "Descriptions", "Total Hours"];
     csvRows.push(headers.join(","));
 
-    approvedSheets.forEach((sheet) => {
-      const row = [
-        sheet.employee_name,
-        sheet.employee_surname,
-        sheet.employee_email,
-        sheet.clock_in,
-        sheet.clock_out,
-        sheet.hours_worked,
-        sheet.status,
-      ];
-      csvRows.push(row.join(","));
+    Array.from(grouped.values()).forEach((g) => {
+      const descriptions = g.tasks.join(" | ").replace(/\n/g, " ").replace(/,/g, " ");
+      csvRows.push([g.name, g.surname, g.email, descriptions, g.total.toFixed(2)].join(","));
     });
 
     const csvData = csvRows.join("\n");
@@ -106,37 +145,32 @@ const AdminDashboard = () => {
 
   // --- Download PDF (only approved timesheets) ---
   const downloadPDF = () => {
-    const approvedSheets = timesheets.filter((s) => s.status === "approved");
-    const doc = new jsPDF();
-    doc.text("Approved Timesheets", 14, 16);
-    const tableColumn = ["Name", "Surname", "Email", "Clock In", "Clock Out", "Hours Worked", "Status"];
-    const tableRows = [];
+    // Use the already grouped, currently displayed data
+    const doc = new jsPDF({ orientation: "landscape" });
+    doc.text("Timesheets (Grouped by Employee)", 14, 16);
+    const tableColumn = ["Name", "Surname", "Email", "Descriptions", "Total Hours"];
+    const tableRows = groupedEmployees.map((g) => [
+      g.name,
+      g.surname,
+      g.email,
+      g.tasks
+        .map((t) => `${t.date}: ${t.description} (${t.clock_in}-${t.clock_out}, ${t.hours}h, ${t.status})`)
+        .join(" | "),
+      g.total.toFixed(2),
+    ]);
 
-    approvedSheets.forEach((sheet) => {
-      const row = [
-        sheet.employee_name,
-        sheet.employee_surname,
-        sheet.employee_email,
-        sheet.clock_in,
-        sheet.clock_out,
-        sheet.hours_worked,
-        sheet.status,
-      ];
-      tableRows.push(row);
-    });
-
-    doc.autoTable({
+    autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: 20,
+      styles: { cellWidth: 'wrap', fontSize: 9 },
+      columnStyles: { 3: { cellWidth: 180 } },
     });
-
-    doc.save("approved_timesheets.pdf");
+    doc.save("timesheets_grouped.pdf");
   };
 
   return (
     <>
-      <Navbar />
       <Box sx={{ p: 4 }}>
         <Typography variant="h4" gutterBottom>
           Admin Dashboard
@@ -147,11 +181,7 @@ const AdminDashboard = () => {
           <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: "center" }}>
             <FormControl sx={{ minWidth: 160 }}>
               <InputLabel>Status Filter</InputLabel>
-              <Select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                label="Status Filter"
-              >
+              <Select value={filter} onChange={(e) => setFilter(e.target.value)} label="Status Filter">
                 <MenuItem value="all">All</MenuItem>
                 <MenuItem value="approved">Approved</MenuItem>
                 <MenuItem value="pending">Pending</MenuItem>
@@ -178,22 +208,26 @@ const AdminDashboard = () => {
                   <TableCell><strong>Name</strong></TableCell>
                   <TableCell><strong>Surname</strong></TableCell>
                   <TableCell><strong>Email</strong></TableCell>
-                  <TableCell><strong>Clock In</strong></TableCell>
-                  <TableCell><strong>Clock Out</strong></TableCell>
-                  <TableCell><strong>Hours Worked</strong></TableCell>
-                  <TableCell><strong>Status</strong></TableCell>
+                  <TableCell><strong>Description</strong></TableCell>
+                  <TableCell><strong>Total Hours</strong></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {timesheets.map((sheet, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{sheet.employee_name}</TableCell>
-                    <TableCell>{sheet.employee_surname}</TableCell>
-                    <TableCell>{sheet.employee_email}</TableCell>
-                    <TableCell>{sheet.clock_in}</TableCell>
-                    <TableCell>{sheet.clock_out}</TableCell>
-                    <TableCell>{sheet.hours_worked}</TableCell>
-                    <TableCell>{sheet.status}</TableCell>
+                {groupedEmployees.map((g) => (
+                  <TableRow key={g.employee_id}>
+                    <TableCell>{g.name}</TableCell>
+                    <TableCell>{g.surname}</TableCell>
+                    <TableCell>{g.email}</TableCell>
+                    <TableCell>
+                      <ul style={{ margin: 0, paddingLeft: 16 }}>
+                        {g.tasks.map((t, idx) => (
+                          <li key={idx}>
+                            {t.date} — {t.description} | {t.clock_in} → {t.clock_out} | {t.hours}h ({t.status})
+                          </li>
+                        ))}
+                      </ul>
+                    </TableCell>
+                    <TableCell>{g.total.toFixed(2)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

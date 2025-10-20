@@ -352,7 +352,7 @@ def update_all_timesheets_status_for_employee(
     db.commit()
 
     return {"updated": len(timesheets)}
-=======
+
 @app.get("/employees/approved", response_model=list[schemas.EmployeeResponse])
 def get_approved_employees(
     db: Session = Depends(get_db),
@@ -363,4 +363,43 @@ def get_approved_employees(
 
     approved_employees = db.query(EmployeeModel).filter(EmployeeModel.status == "approved").all()
     return approved_employees
+
+@app.get("/admin/timesheets")
+def admin_get_timesheets(
+    status: Optional[str] = Query(None, description="Filter by status: pending, approved, rejected"),
+    db: Session = Depends(get_db),
+    current_user: EmployeeModel = Depends(get_current_user)
+):
+    """Admin: return all timesheets enriched with employee details."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admins can access this endpoint")
+
+    query = db.query(TimesheetModel, EmployeeModel).join(
+        EmployeeModel, EmployeeModel.employee_id == TimesheetModel.employee_id
+    )
+    if status is not None:
+        normalized = str(status).lower()
+        valid = {"pending", "approved", "rejected"}
+        if normalized not in valid:
+            raise HTTPException(status_code=400, detail="Invalid status value. Use pending, approved, or rejected")
+        enum_value = TimesheetStatusEnum(normalized)
+        query = query.filter(TimesheetModel.status == enum_value)
+
+    rows = query.all()
+    result = []
+    for ts, emp in rows:
+        result.append({
+            "employee_id": emp.employee_id,
+            "employee_name": emp.name,
+            "employee_surname": emp.surname,
+            "employee_email": emp.email,
+            "clock_in": ts.clock_in,
+            "clock_out": ts.clock_out,
+            "hours_worked": ts.total_hours,
+            "status": ts.status,
+            "date": ts.date,
+            "description": ts.description,
+            "timesheet_id": ts.timesheet_id,
+        })
+    return result
 
