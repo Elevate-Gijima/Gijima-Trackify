@@ -14,12 +14,22 @@ from models import Employee as EmployeeModel, Department as DepartmentModel, Tim
 # Create tables
 Base.metadata.create_all(bind=engine)
 
-origins=[
-    "http://localhost:3000"
-]
+
 
 app = FastAPI(title="Gijima Timesheet API")
 
+
+origins=[
+    "http://localhost:3000"
+]
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,  # Can also use ["*"] to allow all
+    allow_credentials=True,
+    allow_methods=["*"],    # Allows all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],    # Allows all headers
+)
 SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "a_very_secret_key")  # In .env or fallback
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
