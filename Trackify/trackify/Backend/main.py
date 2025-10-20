@@ -250,13 +250,12 @@ def get_timesheets(
     else:
         # Employees can only view their own timesheets
         return crud.get_employee_timesheets(db, current_user.employee_id)
-
 @app.put("/employees/{employee_id}/status", response_model=schemas.EmployeeResponse)
 def update_employee_status(
-    employee_id: str = Path(..., description="ID of the employee to update"),
+    employee_id: str,
     status_update: dict = None,  # expects {"status": "Approved"} or {"status": "Rejected"}
     db: Session = Depends(get_db),
-    current_user: EmployeeModel = Depends(admin_or_mentor_required)
+    current_user: EmployeeModel = Depends(admin_or_manager_required)
 ):
     """Update the status of an employee (Approve/Reject) - only manager or admin can do this."""
     
@@ -272,7 +271,7 @@ def update_employee_status(
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
     
-    # Optional: Only allow manager to update employees in their department
+    # Only allow manager to update employees in their department
     if current_user.role == "manager" and employee.department_name != current_user.department_name:
         raise HTTPException(status_code=403, detail="Cannot update employees outside your department")
     
