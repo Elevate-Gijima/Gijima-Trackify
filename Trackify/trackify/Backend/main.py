@@ -198,7 +198,7 @@ def get_timesheet(
     # Check permissions
     if current_user.role == "employee" and current_user.employee_id != employee_id:
         raise HTTPException(status_code=403, detail="Employees can only view their own timesheets")
-    elif current_user.role == "mentor":
+    elif current_user.role == "manager":
         # Check if employee is in mentor's department
         employee = db.query(EmployeeModel).filter(EmployeeModel.employee_id == employee_id).first()
         if not employee or employee.department_name != current_user.department_name:
