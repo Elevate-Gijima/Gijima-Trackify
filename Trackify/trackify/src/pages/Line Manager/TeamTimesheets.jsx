@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import Swal from "sweetalert2";
 import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography } from "@mui/material";
 
 const API_BASE_URL = "http://localhost:8000"; // Backend base URL
@@ -24,6 +25,7 @@ const TeamTimesheets = () => {
       setEmployees(data);
     } catch (error) {
       console.error("Error fetching employees:", error);
+      Swal.fire("Error", "Failed to fetch employees", "error");
     }
   };
 
@@ -31,16 +33,39 @@ const TeamTimesheets = () => {
     fetchEmployees();
   }, []);
 
-  // Placeholder: handle approval/rejection (needs backend support)
+  // Handle approval/rejection using backend
   const handleStatusChange = async (employeeId, newStatus) => {
     try {
       const token = localStorage.getItem("access_token");
       if (!token) return;
 
-      // TODO: Implement backend endpoint /employees/{employeeId}/status
-      console.log(`Would update ${employeeId} status to ${newStatus}`);
+      const response = await fetch(`${API_BASE_URL}/employees/${employeeId}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || "Failed to update status");
+      }
+
+      const updatedEmployee = await response.json();
+
+      // Update frontend state
+      setEmployees((prev) =>
+        prev.map((emp) =>
+          emp.employee_id === updatedEmployee.employee_id ? updatedEmployee : emp
+        )
+      );
+
+      Swal.fire("Success", `Status updated to ${newStatus}`, "success");
     } catch (error) {
-      console.error(error);
+      console.error("Error updating status:", error);
+      Swal.fire("Error", error.message, "error");
     }
   };
 
