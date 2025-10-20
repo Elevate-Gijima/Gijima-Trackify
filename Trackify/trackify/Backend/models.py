@@ -6,7 +6,7 @@ import enum
 # ---------- ENUMS ----------
 class RoleEnum(str, enum.Enum):
     employee = "employee"
-    mentor = "mentor"
+    manager = "manager"
     administrator = "administrator"
 
 class StatusEnum(str, enum.Enum):
