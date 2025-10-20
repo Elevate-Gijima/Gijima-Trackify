@@ -11,7 +11,9 @@ from fastapi import status
 from jose import JWTError
 from models import Employee as EmployeeModel, Department as DepartmentModel, Timesheet as TimesheetModel
 from fastapi.middleware.cors import CORSMiddleware
-
+from fastapi import Body
+from typing import Optional
+from models import StatusEnum as TimesheetStatusEnum
 
 
 app = FastAPI(title="Gijima Timesheet API")
@@ -253,7 +255,31 @@ def get_timesheets(
     else:
         # Employees can only view their own timesheets
         return crud.get_employee_timesheets(db, current_user.employee_id)
-from fastapi import Body
+
+@app.get("/manager/timesheets", response_model=list[TimesheetResponse])
+def get_manager_timesheets(
+    status: Optional[str] = Query(None, description="Filter by status: pending, approved, rejected"),
+    db: Session = Depends(get_db),
+    current_user: EmployeeModel = Depends(get_current_user)
+):
+    """Return timesheets for employees in the manager's department, optional status filter."""
+    if current_user.role != "manager":
+        raise HTTPException(status_code=403, detail="Only managers can access this endpoint")
+
+    query = db.query(TimesheetModel).join(EmployeeModel, EmployeeModel.employee_id == TimesheetModel.employee_id).filter(
+        EmployeeModel.department_name == current_user.department_name
+    )
+
+    if status is not None:
+        normalized = str(status).lower()
+        valid = {"pending", "approved", "rejected"}
+        if normalized not in valid:
+            raise HTTPException(status_code=400, detail="Invalid status value. Use pending, approved, or rejected")
+        # Compare against Enum value to avoid string/enum mismatch
+        enum_value = TimesheetStatusEnum(normalized)
+        query = query.filter(TimesheetModel.status == enum_value)
+
+    return query.all()
 
 @app.put("/employees/{employee_id}/status", response_model=schemas.EmployeeResponse)
 def update_employee_status(
@@ -285,6 +311,48 @@ def update_employee_status(
 
     return employee
 
+
+@app.put("/employees/{employee_id}/timesheets/status")
+def update_all_timesheets_status_for_employee(
+    employee_id: str,
+    payload: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: EmployeeModel = Depends(get_current_user)
+):
+    """
+    Bulk update: Approve/Reject/Pending all timesheets for an employee.
+    Managers can only act within their department; admins can act globally.
+    """
+    # Permission checks
+    if current_user.role not in ["manager", "admin", "administrator"]:
+        raise HTTPException(status_code=403, detail="Only managers or admins can change timesheets status.")
+
+    # If manager, ensure employee is in same department
+    if current_user.role == "manager":
+        emp = db.query(EmployeeModel).filter(EmployeeModel.employee_id == employee_id).first()
+        if not emp:
+            raise HTTPException(status_code=404, detail="Employee not found")
+        if emp.department_name != current_user.department_name:
+            raise HTTPException(status_code=403, detail="Managers can only update timesheets within their department")
+
+    # Validate status
+    new_status = payload.get("status")
+    valid_values = {"approved", "rejected", "pending"}
+    if not new_status or str(new_status).lower() not in valid_values:
+        raise HTTPException(status_code=400, detail="Invalid status value. Use approved/rejected/pending.")
+    new_status = str(new_status).lower()
+
+    # Update all timesheets for employee
+    timesheets = db.query(TimesheetModel).filter(TimesheetModel.employee_id == employee_id).all()
+    if not timesheets:
+        return {"updated": 0}
+
+    for ts in timesheets:
+        ts.status = new_status  # SQLAlchemy Enum will coerce if necessary
+    db.commit()
+
+    return {"updated": len(timesheets)}
+=======
 @app.get("/employees/approved", response_model=list[schemas.EmployeeResponse])
 def get_approved_employees(
     db: Session = Depends(get_db),
@@ -295,3 +363,4 @@ def get_approved_employees(
 
     approved_employees = db.query(EmployeeModel).filter(EmployeeModel.status == "approved").all()
     return approved_employees
+
