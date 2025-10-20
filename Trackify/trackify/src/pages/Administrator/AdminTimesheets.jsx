@@ -1,59 +1,94 @@
 import React, { useState, useEffect } from "react";
 import Navbar from "../../components/Navbar";
-import { Box, Typography, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Button, Stack } from "@mui/material";
+import {
+  Box,
+  Typography,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Button,
+  Stack,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+} from "@mui/material";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 
 const AdminDashboard = () => {
-  const [users, setUsers] = useState([]);
+  const [timesheets, setTimesheets] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [filter, setFilter] = useState("all");
 
-  // Fetch users from backend
-  const fetchUsers = async () => {
+  const API_BASE_URL = "http://127.0.0.1:8000";
+
+  // --- Fetch Timesheets ---
+  const fetchTimesheets = async () => {
     try {
       const token = localStorage.getItem("access_token");
-      const response = await fetch("http://127.0.0.1:8000/employees/", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const url =
+        filter === "all"
+          ? `${API_BASE_URL}/timesheets`
+          : `${API_BASE_URL}/timesheets?status=${filter}`;
+
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (!response.ok) throw new Error("Failed to fetch users");
+      if (!response.ok) throw new Error("Failed to fetch timesheets");
       const data = await response.json();
-      setUsers(data);
+      setTimesheets(data);
     } catch (error) {
-      console.error(error);
+      console.error("Error fetching timesheets:", error);
+    }
+  };
+
+  // --- Fetch Approved Employees ---
+  const fetchApprovedEmployees = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(`${API_BASE_URL}/employees/approved`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch approved employees");
+      const data = await response.json();
+      setEmployees(data);
+    } catch (error) {
+      console.error("Error fetching approved employees:", error);
     }
   };
 
   useEffect(() => {
-    fetchUsers();
+    fetchTimesheets();
+  }, [filter]);
+
+  useEffect(() => {
+    fetchApprovedEmployees();
   }, []);
 
-  const handleDeleteUser = async (employeeId) => {
-    try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(`http://127.0.0.1:8000/employees/${employeeId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) throw new Error("Failed to delete user");
-      setUsers(users.filter((user) => user.employee_id !== employeeId));
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  // --- Download CSV ---
+  // --- Download CSV (only approved timesheets) ---
   const downloadCSV = () => {
+    const approvedSheets = timesheets.filter((s) => s.status === "approved");
     const csvRows = [];
-    const headers = ["Employee ID", "Name", "Email", "Role"];
+    const headers = ["Name", "Surname", "Email", "Clock In", "Clock Out", "Hours Worked", "Status"];
     csvRows.push(headers.join(","));
 
-    users.forEach((user) => {
-      const row = [user.employee_id, user.name, user.email, user.role];
+    approvedSheets.forEach((sheet) => {
+      const row = [
+        sheet.employee_name,
+        sheet.employee_surname,
+        sheet.employee_email,
+        sheet.clock_in,
+        sheet.clock_out,
+        sheet.hours_worked,
+        sheet.status,
+      ];
       csvRows.push(row.join(","));
     });
 
@@ -63,22 +98,31 @@ const AdminDashboard = () => {
     const a = document.createElement("a");
     a.setAttribute("hidden", "");
     a.setAttribute("href", url);
-    a.setAttribute("download", "users.csv");
+    a.setAttribute("download", "approved_timesheets.csv");
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   };
 
-  // --- Download PDF ---
+  // --- Download PDF (only approved timesheets) ---
   const downloadPDF = () => {
+    const approvedSheets = timesheets.filter((s) => s.status === "approved");
     const doc = new jsPDF();
-    doc.text("User Data", 14, 16);
-    const tableColumn = ["Employee ID", "Name", "Email", "Role"];
+    doc.text("Approved Timesheets", 14, 16);
+    const tableColumn = ["Name", "Surname", "Email", "Clock In", "Clock Out", "Hours Worked", "Status"];
     const tableRows = [];
 
-    users.forEach((user) => {
-      const userData = [user.employee_id, user.name, user.email, user.role];
-      tableRows.push(userData);
+    approvedSheets.forEach((sheet) => {
+      const row = [
+        sheet.employee_name,
+        sheet.employee_surname,
+        sheet.employee_email,
+        sheet.clock_in,
+        sheet.clock_out,
+        sheet.hours_worked,
+        sheet.status,
+      ];
+      tableRows.push(row);
     });
 
     doc.autoTable({
@@ -87,7 +131,7 @@ const AdminDashboard = () => {
       startY: 20,
     });
 
-    doc.save("users.pdf");
+    doc.save("approved_timesheets.pdf");
   };
 
   return (
@@ -98,8 +142,23 @@ const AdminDashboard = () => {
           Admin Dashboard
         </Typography>
 
-        <Paper sx={{ p: 2, mb: 2 }}>
-          <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+        {/* === TIMESHEETS SECTION === */}
+        <Paper sx={{ p: 2, mb: 4 }}>
+          <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: "center" }}>
+            <FormControl sx={{ minWidth: 160 }}>
+              <InputLabel>Status Filter</InputLabel>
+              <Select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                label="Status Filter"
+              >
+                <MenuItem value="all">All</MenuItem>
+                <MenuItem value="approved">Approved</MenuItem>
+                <MenuItem value="pending">Pending</MenuItem>
+                <MenuItem value="rejected">Rejected</MenuItem>
+              </Select>
+            </FormControl>
+
             <Button variant="contained" color="primary" onClick={downloadCSV}>
               Download CSV
             </Button>
@@ -109,37 +168,65 @@ const AdminDashboard = () => {
           </Stack>
 
           <Typography variant="h6" gutterBottom>
-            User Management
+            {filter === "all" ? "All Timesheets" : `${filter.charAt(0).toUpperCase() + filter.slice(1)} Timesheets`}
           </Typography>
 
           <TableContainer component={Paper}>
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell><strong>ID</strong></TableCell>
                   <TableCell><strong>Name</strong></TableCell>
+                  <TableCell><strong>Surname</strong></TableCell>
                   <TableCell><strong>Email</strong></TableCell>
-                  <TableCell><strong>Role</strong></TableCell>
-                  <TableCell><strong>Actions</strong></TableCell>
+                  <TableCell><strong>Clock In</strong></TableCell>
+                  <TableCell><strong>Clock Out</strong></TableCell>
+                  <TableCell><strong>Hours Worked</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {users.map((user) => (
-                  <TableRow key={user.employee_id}>
-                    <TableCell>{user.employee_id}</TableCell>
-                    <TableCell>{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.role}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="contained"
-                        color="error"
-                        size="small"
-                        onClick={() => handleDeleteUser(user.employee_id)}
-                      >
-                        Delete
-                      </Button>
-                    </TableCell>
+                {timesheets.map((sheet, index) => (
+                  <TableRow key={index}>
+                    <TableCell>{sheet.employee_name}</TableCell>
+                    <TableCell>{sheet.employee_surname}</TableCell>
+                    <TableCell>{sheet.employee_email}</TableCell>
+                    <TableCell>{sheet.clock_in}</TableCell>
+                    <TableCell>{sheet.clock_out}</TableCell>
+                    <TableCell>{sheet.hours_worked}</TableCell>
+                    <TableCell>{sheet.status}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+
+        {/* === APPROVED EMPLOYEES SECTION === */}
+        <Paper sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Approved Employees
+          </Typography>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell><strong>ID</strong></TableCell>
+                  <TableCell><strong>Name</strong></TableCell>
+                  <TableCell><strong>Surname</strong></TableCell>
+                  <TableCell><strong>Email</strong></TableCell>
+                  <TableCell><strong>Role</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {employees.map((emp) => (
+                  <TableRow key={emp.employee_id}>
+                    <TableCell>{emp.employee_id}</TableCell>
+                    <TableCell>{emp.name}</TableCell>
+                    <TableCell>{emp.surname}</TableCell>
+                    <TableCell>{emp.email}</TableCell>
+                    <TableCell>{emp.role}</TableCell>
+                    <TableCell>{emp.status}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
