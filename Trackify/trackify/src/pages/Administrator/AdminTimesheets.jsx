@@ -22,30 +22,45 @@ import "jspdf-autotable";
 
 const AdminDashboard = () => {
   const [timesheets, setTimesheets] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [filter, setFilter] = useState("all");
 
-  // Fetch timesheets based on filter
+  const API_BASE_URL = "http://127.0.0.1:8000";
+
+  // --- Fetch Timesheets ---
   const fetchTimesheets = async () => {
     try {
       const token = localStorage.getItem("access_token");
-
-      // Build endpoint dynamically based on filter
       const url =
         filter === "all"
-          ? "http://127.0.0.1:8000/timesheets"
-          : `http://127.0.0.1:8000/timesheets?status=${filter}`;
+          ? `${API_BASE_URL}/timesheets`
+          : `${API_BASE_URL}/timesheets?status=${filter}`;
 
       const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (!response.ok) throw new Error("Failed to fetch timesheets");
       const data = await response.json();
       setTimesheets(data);
     } catch (error) {
-      console.error(error);
+      console.error("Error fetching timesheets:", error);
+    }
+  };
+
+  // --- Fetch Approved Employees ---
+  const fetchApprovedEmployees = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(`${API_BASE_URL}/employees/approved`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch approved employees");
+      const data = await response.json();
+      setEmployees(data);
+    } catch (error) {
+      console.error("Error fetching approved employees:", error);
     }
   };
 
@@ -53,7 +68,11 @@ const AdminDashboard = () => {
     fetchTimesheets();
   }, [filter]);
 
-  // --- Download CSV (only approved) ---
+  useEffect(() => {
+    fetchApprovedEmployees();
+  }, []);
+
+  // --- Download CSV (only approved timesheets) ---
   const downloadCSV = () => {
     const approvedSheets = timesheets.filter((s) => s.status === "approved");
     const csvRows = [];
@@ -85,7 +104,7 @@ const AdminDashboard = () => {
     document.body.removeChild(a);
   };
 
-  // --- Download PDF (only approved) ---
+  // --- Download PDF (only approved timesheets) ---
   const downloadPDF = () => {
     const approvedSheets = timesheets.filter((s) => s.status === "approved");
     const doc = new jsPDF();
@@ -123,7 +142,8 @@ const AdminDashboard = () => {
           Admin Dashboard
         </Typography>
 
-        <Paper sx={{ p: 2, mb: 2 }}>
+        {/* === TIMESHEETS SECTION === */}
+        <Paper sx={{ p: 2, mb: 4 }}>
           <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: "center" }}>
             <FormControl sx={{ minWidth: 160 }}>
               <InputLabel>Status Filter</InputLabel>
@@ -174,6 +194,39 @@ const AdminDashboard = () => {
                     <TableCell>{sheet.clock_out}</TableCell>
                     <TableCell>{sheet.hours_worked}</TableCell>
                     <TableCell>{sheet.status}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+
+        {/* === APPROVED EMPLOYEES SECTION === */}
+        <Paper sx={{ p: 2 }}>
+          <Typography variant="h6" gutterBottom>
+            Approved Employees
+          </Typography>
+          <TableContainer component={Paper}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell><strong>ID</strong></TableCell>
+                  <TableCell><strong>Name</strong></TableCell>
+                  <TableCell><strong>Surname</strong></TableCell>
+                  <TableCell><strong>Email</strong></TableCell>
+                  <TableCell><strong>Role</strong></TableCell>
+                  <TableCell><strong>Status</strong></TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {employees.map((emp) => (
+                  <TableRow key={emp.employee_id}>
+                    <TableCell>{emp.employee_id}</TableCell>
+                    <TableCell>{emp.name}</TableCell>
+                    <TableCell>{emp.surname}</TableCell>
+                    <TableCell>{emp.email}</TableCell>
+                    <TableCell>{emp.role}</TableCell>
+                    <TableCell>{emp.status}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
