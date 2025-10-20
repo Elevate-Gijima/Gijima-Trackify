@@ -152,13 +152,13 @@ def update_employee_details(
 # ---------- Mentor's Department Employees ----------
 @app.get("/manager/employees", response_model=list[schemas.EmployeeResponse])
 def get_mentor_employees(
-    role: str = Query(None, description="Filter by employee role (employee, mentor, administrator)"),
+    role: str = Query(None, description="Filter by employee role (employee, manager, admin)"),
     db: Session = Depends(get_db),
     current_user: EmployeeModel = Depends(get_current_user)
 ):
     """Get employees in mentor's department, optionally filtered by role."""
-    if current_user.role != "mentor":
-        raise HTTPException(status_code=403, detail="Only mentors can access this endpoint")
+    if current_user.role != "manager":
+        raise HTTPException(status_code=403, detail="Only managers can access this endpoint")
     
     # Get employees in the mentor's department
     employees = crud.get_employees_by_department(db, current_user.department_name)
@@ -224,11 +224,11 @@ def update_timesheet(
     if current_user.role == "employee":
         if timesheet.employee_id != current_user.employee_id:
             raise HTTPException(status_code=403, detail="Employees can only edit their own timesheets")
-    elif current_user.role == "mentor":
+    elif current_user.role == "manager":
         # Check that timesheet employee is in mentor's department
         employee = db.query(EmployeeModel).filter(EmployeeModel.employee_id == timesheet.employee_id).first()
         if not employee or employee.department_name != current_user.department_name:
-            raise HTTPException(status_code=403, detail="Mentors can only edit timesheets from their department")
+            raise HTTPException(status_code=403, detail="Manager can only edit timesheets from their department")
     # If passed, update
     try:
         return crud.update_timesheet(db, timesheet.employee_id, timesheet.date, timesheet_update)
@@ -241,12 +241,44 @@ def get_timesheets(
     current_user: EmployeeModel = Depends(get_current_user)
 ):
     """Get timesheets based on user role."""
-    if current_user.role == "administrator":
+    if current_user.role == "admin":
         # Administrators can view all timesheets
         return crud.get_all_timesheets(db)
-    elif current_user.role == "mentor":
+    elif current_user.role == "manager":
         # Mentors can view timesheets from their department
         return crud.get_mentor_department_timesheets(db, current_user.department_name)
     else:
         # Employees can only view their own timesheets
         return crud.get_employee_timesheets(db, current_user.employee_id)
+
+@app.put("/employees/{employee_id}/status", response_model=schemas.EmployeeResponse)
+def update_employee_status(
+    employee_id: str = Path(..., description="ID of the employee to update"),
+    status_update: dict = None,  # expects {"status": "Approved"} or {"status": "Rejected"}
+    db: Session = Depends(get_db),
+    current_user: EmployeeModel = Depends(admin_or_mentor_required)
+):
+    """Update the status of an employee (Approve/Reject) - only manager or admin can do this."""
+    
+    if not status_update or "status" not in status_update:
+        raise HTTPException(status_code=400, detail="Missing 'status' field")
+    
+    new_status = status_update["status"]
+    if new_status not in ["Approved", "Rejected"]:
+        raise HTTPException(status_code=400, detail="Status must be 'Approved' or 'Rejected'")
+    
+    # Fetch the employee
+    employee = db.query(EmployeeModel).filter(EmployeeModel.employee_id == employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    # Optional: Only allow manager to update employees in their department
+    if current_user.role == "manager" and employee.department_name != current_user.department_name:
+        raise HTTPException(status_code=403, detail="Cannot update employees outside your department")
+    
+    # Update status
+    employee.status = new_status
+    db.commit()
+    db.refresh(employee)
+    
+    return employee
