@@ -1,197 +1,158 @@
+# crud.py
 from sqlalchemy.orm import Session
-from models import Employee, Department, Timesheet, StatusEnum
-from schemas import EmployeeCreate, EmployeeUpdate, TimesheetCreate, TimesheetUpdate
+from sqlalchemy import func
 from passlib.context import CryptContext
-from datetime import datetime, timedelta
+from passlib.exc import UnknownHashError
+import models
+from datetime import datetime
+from uuid import uuid4
 
-# Configure password hashing
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-
-# ---------- Helper Functions ----------
-
-def hash_password(password: str):
-    """Hash a plain-text password using pbkdf2_sha256."""
-    return pwd_context.hash(password)
+pwd_context = CryptContext(schemes=["pbkdf2_sha256", "bcrypt"], deprecated="auto")
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a plain-text password against its hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+# ===================== User Authentication =====================
+def verify_password(plain_password, hashed_password):
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except UnknownHashError:
+        # Fallback for legacy plaintext or unknown formats
+        return plain_password == hashed_password
 
+def get_password_hash(password):
+    # Use pbkdf2_sha256 for new hashes to avoid bcrypt's 72-byte input limit
+    try:
+        return pwd_context.hash(password, scheme="pbkdf2_sha256")
+    except Exception:
+        # Fallback to default behavior if explicit scheme fails
+        return pwd_context.hash(password)
 
-# ---------- Authentication ----------
+def get_user_by_email(db: Session, email: str):
+    normalized = (email or "").strip().lower()
+    return db.query(models.Employee).filter(func.lower(models.Employee.email) == normalized).first()
 
 def authenticate_user(db: Session, email: str, password: str):
-    """
-    Authenticate a user by verifying their email and password.
-    Returns the Employee object if successful, otherwise None.
-    """
-    user = db.query(Employee).filter(Employee.email == email).first()
+    user = get_user_by_email(db, email)
     if not user:
         return None
-    if not verify_password(password, user.password_hash):
-        return None
+    
+    # Prefer password_hash if available; fallback to legacy plain-text field if present
+    stored_hash = getattr(user, "password_hash", None)
+    if stored_hash:
+        try:
+            if not verify_password(password, stored_hash):
+                return None
+        except Exception as e:
+            return None
+    else:
+        legacy_plain = getattr(user, "password", None)
+        if legacy_plain is None or legacy_plain != password:
+            return None
+    
     return user
 
 
-# ---------- Employee CRUD ----------
+# ===================== Employee CRUD =====================
+def get_employee_by_id(db: Session, employee_id: str):
+    return db.query(models.Employee).filter(models.Employee.employee_id == employee_id).first()
 
-def create_employee(db: Session, employee: EmployeeCreate):
-    """
-    Create a new employee with hashed password.
-    Ensures email and employee_id are unique.
-    """
-    if db.query(Employee).filter(Employee.email == employee.email).first():
-        raise ValueError("Email already exists")
 
-    if db.query(Employee).filter(Employee.employee_id == employee.employee_id).first():
-        raise ValueError("Employee ID already exists")
+def create_employee(db: Session, employee):
+    hashed_password = get_password_hash(employee.password)
+    # Coerce role to RoleEnum for DB integrity
+    try:
+        role_value = models.RoleEnum(employee.role) if not isinstance(employee.role, models.RoleEnum) else employee.role
+    except Exception:
+        # Default to employee if invalid role provided
+        role_value = models.RoleEnum.employee
 
-    db_employee = Employee(
-        employee_id=employee.employee_id,
+    # Generate an employee_id if missing/blank
+    provided_id = getattr(employee, "employee_id", None)
+    employee_id = (provided_id or "").strip() or ("EMP" + uuid4().hex[:12].upper())
+
+    db_employee = models.Employee(
+        employee_id=employee_id,
+        email=employee.email,
+        password_hash=hashed_password,
         name=employee.name,
         surname=employee.surname,
-        email=employee.email,
-        password_hash=hash_password(employee.password),
-        role=employee.role,
+        role=role_value,
         department_name=employee.department_name
     )
-
     db.add(db_employee)
     db.commit()
     db.refresh(db_employee)
     return db_employee
 
-
-def get_employees(db: Session):
-    """Return all employees."""
-    return db.query(Employee).all()
-
-
-def get_employee_by_email(db: Session, email: str):
-    """Return a single employee by email."""
-    return db.query(Employee).filter(Employee.email == email).first()
-
-
-def get_department_for_employee(db: Session, employee: Employee):
-    """Look up the department object by employee's department_name (non-FK)."""
-    return db.query(Department).filter(Department.name == employee.department_name).first()
-
-
-def update_employee(db: Session, employee_id: str, employee_update: EmployeeUpdate):
-    """Update employee details."""
-    db_employee = db.query(Employee).filter(Employee.employee_id == employee_id).first()
-    if not db_employee:
+def update_employee(db: Session, employee_id: str, update_data):
+    emp = db.query(models.Employee).filter(models.Employee.employee_id == employee_id).first()
+    if not emp:
         raise ValueError("Employee not found")
-    
-    # Update only provided fields
-    if employee_update.name is not None:
-        db_employee.name = employee_update.name
-    if employee_update.surname is not None:
-        db_employee.surname = employee_update.surname
-    if employee_update.email is not None:
-        # Check if new email already exists
-        existing_employee = db.query(Employee).filter(Employee.email == employee_update.email, Employee.employee_id != employee_id).first()
-        if existing_employee:
-            raise ValueError("Email already exists")
-        db_employee.email = employee_update.email
-    if employee_update.password is not None:
-        db_employee.password_hash = hash_password(employee_update.password)
-    if employee_update.department_name is not None:
-        db_employee.department_name = employee_update.department_name
-    
+    for key, value in update_data.dict(exclude_unset=True).items():
+        setattr(emp, key, value)
     db.commit()
-    db.refresh(db_employee)
-    return db_employee
+    db.refresh(emp)
+    return emp
 
+
+# ===================== Department CRUD =====================
+def create_department(db: Session, department):
+    db_department = models.Department(name=department.name)
+    db.add(db_department)
+    db.commit()
+    db.refresh(db_department)
+    return db_department
 
 def get_employees_by_department(db: Session, department_name: str):
-    """Get all employees that belong to a specific department."""
-    return db.query(Employee).filter(Employee.department_name == department_name).all()
+    return db.query(models.Employee).filter(models.Employee.department_name == department_name).all()
 
 
-# ---------- Timesheet CRUD ----------
-
-def create_timesheet(db: Session, employee_id: str, timesheet: TimesheetCreate):
-    """Create a new timesheet entry."""
-    # Check if timesheet already exists for this employee and date
-    existing = db.query(Timesheet).filter(
-        Timesheet.employee_id == employee_id,
-        Timesheet.date == timesheet.date
-    ).first()
-    if existing:
-        raise ValueError("Timesheet already exists for this date")
-    
+# ===================== Timesheet CRUD =====================
+def create_timesheet(db: Session, employee_id: str, timesheet):
     # Calculate total hours
-    clock_in_dt = datetime.combine(timesheet.date, timesheet.clock_in)
-    clock_out_dt = datetime.combine(timesheet.date, timesheet.clock_out)
-    total_hours = (clock_out_dt - clock_in_dt).total_seconds() / 3600
+    clock_in_datetime = datetime.combine(timesheet.date, timesheet.clock_in)
+    clock_out_datetime = datetime.combine(timesheet.date, timesheet.clock_out)
+    total_hours = (clock_out_datetime - clock_in_datetime).total_seconds() / 3600
     
-    db_timesheet = Timesheet(
+    db_timesheet = models.Timesheet(
         employee_id=employee_id,
         date=timesheet.date,
-        description=timesheet.description,
         clock_in=timesheet.clock_in,
         clock_out=timesheet.clock_out,
-        total_hours=round(total_hours, 2),
-        status=StatusEnum.pending
+        total_hours=total_hours,
+        status=models.StatusEnum.pending,
+        description=timesheet.description
     )
-    
     db.add(db_timesheet)
     db.commit()
     db.refresh(db_timesheet)
     return db_timesheet
 
-def get_timesheet(db: Session, employee_id: str, date: str):
-    """Get a specific timesheet entry."""
-    return db.query(Timesheet).filter(
-        Timesheet.employee_id == employee_id,
-        Timesheet.date == date
+def get_timesheet(db: Session, employee_id: str, date):
+    return db.query(models.Timesheet).filter(
+        models.Timesheet.employee_id == employee_id,
+        models.Timesheet.date == date
     ).first()
 
-def update_timesheet(db: Session, employee_id: str, date: str, timesheet_update: TimesheetUpdate):
-    """Update a timesheet entry."""
-    db_timesheet = db.query(Timesheet).filter(
-        Timesheet.employee_id == employee_id,
-        Timesheet.date == date
+def update_timesheet(db: Session, employee_id: str, date, update_data):
+    ts = db.query(models.Timesheet).filter(
+        models.Timesheet.employee_id == employee_id,
+        models.Timesheet.date == date
     ).first()
-    
-    if not db_timesheet:
+    if not ts:
         raise ValueError("Timesheet not found")
-    
-    # Update only provided fields
-    if timesheet_update.description is not None:
-        db_timesheet.description = timesheet_update.description
-    if timesheet_update.clock_in is not None:
-        db_timesheet.clock_in = timesheet_update.clock_in
-    if timesheet_update.clock_out is not None:
-        db_timesheet.clock_out = timesheet_update.clock_out
-    if timesheet_update.status is not None:
-        db_timesheet.status = timesheet_update.status
-    
-    # Recalculate total hours if clock times changed
-    if timesheet_update.clock_in is not None or timesheet_update.clock_out is not None:
-        clock_in = timesheet_update.clock_in if timesheet_update.clock_in else db_timesheet.clock_in
-        clock_out = timesheet_update.clock_out if timesheet_update.clock_out else db_timesheet.clock_out
-        clock_in_dt = datetime.combine(db_timesheet.date, clock_in)
-        clock_out_dt = datetime.combine(db_timesheet.date, clock_out)
-        total_hours = (clock_out_dt - clock_in_dt).total_seconds() / 3600
-        db_timesheet.total_hours = round(total_hours, 2)
-    
+    for key, value in update_data.dict(exclude_unset=True).items():
+        setattr(ts, key, value)
     db.commit()
-    db.refresh(db_timesheet)
-    return db_timesheet
+    db.refresh(ts)
+    return ts
 
 def get_all_timesheets(db: Session):
-    """Get all timesheets (for administrators)."""
-    return db.query(Timesheet).all()
-
-def get_mentor_department_timesheets(db: Session, department_name: str):
-    """Get timesheets for employees in mentor's department."""
-    return db.query(Timesheet).join(Employee).filter(
-        Employee.department_name == department_name
-    ).all()
+    return db.query(models.Timesheet).all()
 
 def get_employee_timesheets(db: Session, employee_id: str):
-    """Get all timesheets for a specific employee."""
-    return db.query(Timesheet).filter(Timesheet.employee_id == employee_id).all()
+    return db.query(models.Timesheet).filter(models.Timesheet.employee_id == employee_id).all()
+
+def get_mentor_department_timesheets(db: Session, department_name: str):
+    return db.query(models.Timesheet).join(models.Employee).filter(
+        models.Employee.department_name == department_name
+    ).all()

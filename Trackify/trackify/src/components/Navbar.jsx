@@ -1,12 +1,14 @@
 import React from "react";
 import { AppBar, Toolbar, Typography, Button, Box, Chip } from "@mui/material";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "./AuthContext";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 
 const Navbar = () => {
   const role = localStorage.getItem("role") || "employee";
   const fullName = localStorage.getItem("name") || "Employee Name";
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   // Extract initials (e.g., "Mavasa Musa" -> "MM")
   const getInitials = (name) => {
@@ -19,18 +21,16 @@ const Navbar = () => {
 
   const menus = {
     employee: [
-      { path: "/", label: "Dashboard" },
-      { path: "/timesheets", label: "My Timesheets" },
+      { path: "/home", label: "Dashboard" },
+      { path: "/my-timesheets", label: "My Timesheets" },
+      { path: "/add-task", label: "Add Task" },
     ],
     manager: [
-      { path: "/", label: "Dashboard" },
-      { path: "/team-timesheets", label: "Team Timesheets" },
-      { path: "/reports", label: "Reports" },
+      { path: "/manager", label: "Dashboard" },
+      { path: "/manager/calendar", label: "Calendar" },
     ],
     admin: [
       { path: "/", label: "Dashboard" },
-      { path: "/users", label: "User Management" },
-      { path: "/reports", label: "Reports" },
     ],
   };
 
@@ -90,7 +90,14 @@ const Navbar = () => {
                 backgroundColor: "navy",
                 "&:hover": { backgroundColor: "#001a66" },
               }}
-              onClick={() => navigate("/add-employee")}
+              onClick={() => {
+                if (window.openAddEmployeeDialog) {
+                  window.openAddEmployeeDialog();
+                } else {
+                  // Fallback to navigation if function not available
+                  navigate("/add-employee");
+                }
+              }}
             >
               ➕ Add Employee
             </Button>
@@ -112,9 +119,9 @@ const Navbar = () => {
               color: "white",
               "&:hover": { backgroundColor: "#b30000" },
             }}
-            onClick={() => {
-              localStorage.clear();
-              window.location.href = "/login";
+            onClick={async () => {
+              await logout();
+              navigate("/login");
             }}
           >
             Logout
