@@ -352,7 +352,7 @@ def update_all_timesheets_status_for_employee(
     db.commit()
 
     return {"updated": len(timesheets)}
-=======
+
 @app.get("/employees/approved", response_model=list[schemas.EmployeeResponse])
 def get_approved_employees(
     db: Session = Depends(get_db),
