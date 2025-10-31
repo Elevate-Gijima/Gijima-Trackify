@@ -4,22 +4,26 @@ import { AuthProvider } from './components/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
 import Login from './components/Login';
+import ForgotPassword from './components/ForgotPassword';
 import TimesheetForm from './pages/Juniors/TimesheetForm';
 import LandingPage from './pages/Juniors/JuniorHomePage';
 import ManagerDashboard from './pages/Line Manager/TeamTimesheets';
+import ManagerCalendar from './pages/Line Manager/ManagerCalendar';
 import AdminDashboard from './pages/Administrator/AdminTimesheets';
+import EmployeeTimesheetHistory from './pages/Juniors/EmployeeTimesheetHistory';
 
 const AppContent = () => {
   const location = useLocation();
-  const hideNavbar = location.pathname === '/login' || location.pathname === '/';
+  const hideNavbar = location.pathname === '/login' || location.pathname === '/' || location.pathname === '/forgot-password';
 
   return (
     <>
       {!hideNavbar && <Navbar />}
       <Routes>
-        {/* Public login route */}
+        {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Employee routes */}
         <Route
@@ -31,10 +35,18 @@ const AppContent = () => {
           }
         />
         <Route
-          path="/timesheet"
+          path="/add-task"
           element={
             <ProtectedRoute allowedRoles={['employee']}>
               <TimesheetForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/my-timesheets"
+          element={
+            <ProtectedRoute allowedRoles={['employee']}>
+              <EmployeeTimesheetHistory />
             </ProtectedRoute>
           }
         />
@@ -45,6 +57,14 @@ const AppContent = () => {
           element={
             <ProtectedRoute allowedRoles={['manager']}>
               <ManagerDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manager/calendar"
+          element={
+            <ProtectedRoute allowedRoles={['manager']}>
+              <ManagerCalendar />
             </ProtectedRoute>
           }
         />
