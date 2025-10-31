@@ -1,15 +1,36 @@
 import React, { useState, useEffect } from "react";
-import Swal from "sweetalert2";
-import { Box, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Typography, Modal } from "@mui/material";
+import { 
+  Box, 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableContainer, 
+  TableHead, 
+  TableRow, 
+  Paper, 
+  Typography, 
+  Stack, 
+  Card, 
+  CardContent,
+  TablePagination,
+  Chip,
+  IconButton,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText
+} from "@mui/material";
+import { MoreVert, CheckCircle, Cancel } from "@mui/icons-material";
 
-const API_BASE_URL = "http://localhost:8000"; // Backend base URL
+const API_BASE_URL = "http://127.0.0.1:8000";
 
 const TeamTimesheets = () => {
   const [employees, setEmployees] = useState([]);
-  const [allTimesheets, setAllTimesheets] = useState([]);
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [employeeTimesheets, setEmployeeTimesheets] = useState([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [timesheets, setTimesheets] = useState([]);
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [selectedTimesheet, setSelectedTimesheet] = useState(null);
 
   // Fetch employees
   const fetchEmployees = async () => {
@@ -25,235 +46,284 @@ const TeamTimesheets = () => {
       const data = await response.json();
       setEmployees(data);
     } catch (error) {
-      Swal.fire("Error", "Failed to fetch employees", "error");
+      console.error("Failed to fetch employees:", error);
     }
   };
-  // Fetch all timesheets
-  const fetchAllTimesheets = async () => {
+
+  // Fetch timesheets
+  const fetchTimesheets = async () => {
     try {
       const token = localStorage.getItem("access_token");
       if (!token) return;
-      const response = await fetch(`${API_BASE_URL}/manager/timesheets?status=pending`, {
+      const response = await fetch(`${API_BASE_URL}/timesheets`, {
         headers: {
           Authorization: `Bearer ${token}`,
-          "Cache-Control": "no-cache",
-          Pragma: "no-cache",
-          Expires: "0",
         },
       });
       if (!response.ok) throw new Error("Failed to fetch timesheets");
       const data = await response.json();
-      setAllTimesheets(data);
+      setTimesheets(data);
     } catch (error) {
-      Swal.fire("Error", "Failed to fetch timesheets", "error");
-    }
-  };
-
-  const fetchEmployeeTimesheets = async (employeeId) => {
-    try {
-      const token = localStorage.getItem("access_token");
-      if (!token) return;
-      const response = await fetch(`${API_BASE_URL}/manager/timesheets?status=pending`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Cache-Control": "no-cache",
-          Pragma: "no-cache",
-          Expires: "0",
-        },
-      });
-      if (!response.ok) throw new Error("Failed to fetch timesheets");
-      const deptTimesheets = await response.json();
-      const filtered = deptTimesheets.filter(ts => ts.employee_id === employeeId && ts.status === 'pending');
-      setEmployeeTimesheets(filtered);
-    } catch (error) {
-      Swal.fire("Error", "Failed to fetch timesheets", "error");
-    }
-  };
-
-  const updateTimesheetStatus = async (timesheetId, status) => {
-    try {
-      const token = localStorage.getItem("access_token");
-      if (!token) return;
-      const response = await fetch(`${API_BASE_URL}/timesheets/${timesheetId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status }),
-      });
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.detail || "Failed to update timesheet status");
-      }
-      return await response.json();
-    } catch (error) {
-      Swal.fire("Error", error.message, "error");
-    }
-  };
-
-  // Bulk update function for employee
-  const updateAllEmployeeTimesheetsStatus = async (employeeId, status) => {
-    const employeeTs = allTimesheets.filter(ts => ts.employee_id === employeeId);
-    let success = 0, fail = 0;
-    for (const ts of employeeTs) {
-      try {
-        await updateTimesheetStatus(ts.timesheet_id, status);
-        success++;
-      } catch {
-        fail++;
-      }
-    }
-    Swal.fire("Done", `Updated ${success} timesheet(s).`, fail ? "warning" : "success");
-    // Immediately remove this employee's timesheets from local state so the row disappears
-    setAllTimesheets(prev => prev.filter(ts => ts.employee_id !== employeeId));
-    // If the modal is open for this employee, clear and close it
-    if (selectedEmployee && selectedEmployee.employee_id === employeeId) {
-      setEmployeeTimesheets([]);
-      setIsModalOpen(false);
+      console.error("Failed to fetch timesheets:", error);
     }
   };
 
   useEffect(() => {
     fetchEmployees();
-    fetchAllTimesheets();
+    fetchTimesheets();
   }, []);
 
+  // Calculate statistics
+  const totalEmployees = employees.length;
+  const pendingTasks = timesheets.filter(ts => ts.status === "pending").length;
+  const completedTasks = timesheets.filter(ts => ts.status === "approved").length;
+  const rejectedTasks = timesheets.filter(ts => ts.status === "rejected").length;
+
+  // Get recent pending tasks (top 10)
+  const recentPendingTasks = timesheets
+    .filter(ts => ts.status === "pending")
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
+    .slice(0, 10);
+
+  // Get employee details by ID
+  const getEmployeeDetails = (employeeId) => {
+    // Convert both to strings for comparison to handle type mismatches
+    const employee = employees.find(emp => 
+      String(emp.employee_id) === String(employeeId)
+    );
+    return employee ? {
+      name: `${employee.name} ${employee.surname}`,
+      email: employee.email
+    } : {
+      name: `Employee ${employeeId}`,
+      email: 'Email not available'
+    };
+  };
+
+  const handleChangePage = (event, newPage) => {
+    setPage(newPage);
+  };
+
+  const handleChangeRowsPerPage = (event) => {
+    setRowsPerPage(parseInt(event.target.value, 10));
+    setPage(0);
+  };
+
+  // Handle menu operations
+  const handleMenuOpen = (event, timesheet) => {
+    setAnchorEl(event.currentTarget);
+    setSelectedTimesheet(timesheet);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+    setSelectedTimesheet(null);
+  };
+
+  const handleStatusUpdate = async (status) => {
+    if (!selectedTimesheet) return;
+
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(
+        `${API_BASE_URL}/manager/employees/${selectedTimesheet.employee_id}/timesheets/status`,
+        {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ status }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to update timesheet status');
+      }
+
+      // Refresh timesheets data
+      await fetchTimesheets();
+      handleMenuClose();
+      
+      // Show success message
+      alert(`Timesheet ${status} successfully!`);
+    } catch (error) {
+      console.error('Error updating timesheet status:', error);
+      alert('Failed to update timesheet status');
+    }
+  };
+
   return (
-    <Box sx={{ p: 4 }}>
-      <Typography variant="h5" gutterBottom>
-        My Team
+    <Box sx={{ p: 4, backgroundColor: "whitesmoke", minHeight: "100vh" }}>
+      <Typography variant="h4" gutterBottom sx={{ fontWeight: "bold", color: "navy", mb: 4 }}>
+        Manager Dashboard
       </Typography>
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell><strong>ID</strong></TableCell>
-              <TableCell><strong>Name</strong></TableCell>
-              <TableCell><strong>Department</strong></TableCell>
-              <TableCell><strong>Role</strong></TableCell>
-              <TableCell><strong>Tasks Descriptions</strong></TableCell>
-              <TableCell><strong>Status</strong></TableCell>
-            </TableRow>
-          </TableHead>
+      {/* Statistics Cards */}
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={3} sx={{ mb: 4 }}>
+        <Card sx={{ flex: 1, background: "linear-gradient(45deg, #001f3f 20%, #0074D9 90%)", color: "white" }}>
+          <CardContent sx={{ textAlign: "center" }}>
+            <Typography variant="h6">Total Employees</Typography>
+            <Typography variant="h3" sx={{ fontWeight: "bold" }}>{totalEmployees}</Typography>
+          </CardContent>
+        </Card>
+        
+        <Card sx={{ flex: 1, background: "linear-gradient(45deg, #FFF700 10%, #FFD700 90%)", color: "navy" }}>
+          <CardContent sx={{ textAlign: "center" }}>
+            <Typography variant="h6">Pending Tasks</Typography>
+            <Typography variant="h3" sx={{ fontWeight: "bold" }}>{pendingTasks}</Typography>
+          </CardContent>
+        </Card>
+        
+        <Card sx={{ flex: 1, background: "linear-gradient(45deg, #2ECC40 10%, #01FF70 90%)", color: "#022" }}>
+          <CardContent sx={{ textAlign: "center" }}>
+            <Typography variant="h6">Completed Tasks</Typography>
+            <Typography variant="h3" sx={{ fontWeight: "bold" }}>{completedTasks}</Typography>
+          </CardContent>
+        </Card>
+        
+        <Card sx={{ flex: 1, background: "linear-gradient(45deg, #FF4136 10%, #FF6B6B 90%)", color: "white" }}>
+          <CardContent sx={{ textAlign: "center" }}>
+            <Typography variant="h6">Rejected Tasks</Typography>
+            <Typography variant="h3" sx={{ fontWeight: "bold" }}>{rejectedTasks}</Typography>
+          </CardContent>
+        </Card>
+      </Stack>
 
-          <TableBody>
-            {employees
-              .filter(emp => allTimesheets.some(ts => ts.employee_id === emp.employee_id && ts.status === 'pending'))
-              .map((emp) => {
-                const empTimesheets = allTimesheets.filter(ts => ts.employee_id === emp.employee_id && ts.status === 'pending');
-                return (
-                  <TableRow key={emp.employee_id}>
-                    <TableCell>{emp.employee_id}</TableCell>
-                    <TableCell style={{cursor:'pointer', color:'#2A57A6', textDecoration:'underline'}}
-                      onClick={async () => {
-                        setSelectedEmployee(emp);
-                        await fetchEmployeeTimesheets(emp.employee_id);
-                        setIsModalOpen(true);
-                      }}>{emp.name}</TableCell>
-                    <TableCell>{emp.department_name}</TableCell>
-                    <TableCell>{emp.role}</TableCell>
-                    <TableCell>
-                      <ul style={{margin:0, paddingLeft:16}}>
-                        {empTimesheets.map((ts) => (
-                          <li key={ts.timesheet_id}>{ts.description}</li>
-                        ))}
-                      </ul>
-                    </TableCell>
-                    <TableCell>
-                      <Button 
-                        variant="contained" color="success" size="small" sx={{mr:1, ...(empTimesheets.length > 0 && empTimesheets.every(ts => ts.status === 'approved') ? { backgroundColor: '#9e9e9e' } : {})}}
-                        onClick={async ()=>await updateAllEmployeeTimesheetsStatus(emp.employee_id, "approved")}
-                        disabled={empTimesheets.length === 0}
-                      >Approve</Button>
-                      <Button 
-                        variant="contained" color="error" size="small"
-                        onClick={async ()=>await updateAllEmployeeTimesheetsStatus(emp.employee_id, "rejected")}
-                        disabled={empTimesheets.length === 0}
-                      >Reject</Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      {/* My Team Table */}
+      <Paper elevation={4} sx={{ mb: 4 }}>
+        <Typography variant="h5" sx={{ p: 2, fontWeight: "bold", color: "navy" }}>
+          My Team
+        </Typography>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell><strong>ID</strong></TableCell>
+                <TableCell><strong>Name</strong></TableCell>
+                <TableCell><strong>Surname</strong></TableCell>
+                <TableCell><strong>Email</strong></TableCell>
+                <TableCell><strong>Department</strong></TableCell>
+                <TableCell><strong>Role</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {employees
+                .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
+                .map((emp) => (
+                <TableRow key={emp.employee_id}>
+                  <TableCell>{emp.employee_id}</TableCell>
+                  <TableCell>{emp.name}</TableCell>
+                  <TableCell>{emp.surname}</TableCell>
+                  <TableCell>{emp.email}</TableCell>
+                  <TableCell>{emp.department_name}</TableCell>
+                  <TableCell>{emp.role}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+        <TablePagination
+          rowsPerPageOptions={[5, 10, 25]}
+          component="div"
+          count={employees.length}
+          rowsPerPage={rowsPerPage}
+          page={page}
+          onPageChange={handleChangePage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+        />
+      </Paper>
 
-      <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)}>
-        <Box sx={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%, -50%)',width:700,bgcolor:'background.paper',borderRadius:2,boxShadow:24,p:4}}>
-          <Typography variant="h6" sx={{mb:2}}>Timesheets for {selectedEmployee?.name}</Typography>
-          {employeeTimesheets.length === 0 ? (
-            <Typography>No timesheets found.</Typography>
-          ) : (
-            <TableContainer component={Paper} sx={{mb:2}}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Description</TableCell>
-                    <TableCell>Clock In</TableCell>
-                    <TableCell>Clock Out</TableCell>
-                    <TableCell>Total Hours</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {employeeTimesheets.map(ts => (
-                    <TableRow key={ts.timesheet_id}>
-                      <TableCell>{ts.date}</TableCell>
-                      <TableCell>{ts.description}</TableCell>
-                      <TableCell>{ts.clock_in}</TableCell>
-                      <TableCell>{ts.clock_out}</TableCell>
-                      <TableCell>{ts.total_hours}</TableCell>
+      {/* Recent Tasks Section */}
+      <Paper elevation={4}>
+        <Typography variant="h5" sx={{ p: 2, fontWeight: "bold", color: "navy" }}>
+          Recent Pending Tasks (Top 10)
+        </Typography>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell><strong>Employee</strong></TableCell>
+                <TableCell><strong>Email</strong></TableCell>
+                <TableCell><strong>Date</strong></TableCell>
+                <TableCell><strong>Clock In</strong></TableCell>
+                <TableCell><strong>Clock Out</strong></TableCell>
+                <TableCell><strong>Total Hours</strong></TableCell>
+                <TableCell><strong>Description</strong></TableCell>
+                <TableCell><strong>Status</strong></TableCell>
+                <TableCell><strong>Actions</strong></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {recentPendingTasks.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} sx={{ textAlign: "center", py: 4 }}>
+                    <Typography color="text.secondary">No pending tasks found.</Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                recentPendingTasks.map((task) => {
+                  const employeeDetails = getEmployeeDetails(task.employee_id);
+                  return (
+                    <TableRow key={task.timesheet_id}>
+                      <TableCell>{employeeDetails.name}</TableCell>
+                      <TableCell>{employeeDetails.email}</TableCell>
+                      <TableCell>{task.date}</TableCell>
+                      <TableCell>{task.clock_in}</TableCell>
+                      <TableCell>{task.clock_out}</TableCell>
+                      <TableCell>{task.total_hours}</TableCell>
+                      <TableCell>{task.description || "N/A"}</TableCell>
                       <TableCell>
-                        <Typography sx={{ color: ts.status === 'approved' ? '#9e9e9e' : (ts.status === 'rejected' ? 'red' : 'orange'), fontWeight: 500 }}>
-                          {ts.status}
-                        </Typography>
+                        <Chip 
+                          label={task.status} 
+                          color="warning" 
+                          size="small"
+                        />
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="contained"
-                          color="success"
+                        <IconButton
+                          onClick={(e) => handleMenuOpen(e, task)}
                           size="small"
-                          sx={{ mr: 1, ...(ts.status === 'approved' ? { backgroundColor: '#9e9e9e' } : {}) }}
-                          onClick={async () => {
-                            const updated = await updateTimesheetStatus(ts.timesheet_id, "approved");
-                            if (updated) {
-                              setEmployeeTimesheets(prev => prev.filter(t => t.timesheet_id !== ts.timesheet_id));
-                              setAllTimesheets(prev => prev.filter(t => t.timesheet_id !== ts.timesheet_id));
-                            }
-                          }}
-                          disabled={ts.status === 'approved'}
                         >
-                          Approve
-                        </Button>
-                        <Button
-                          variant="contained"
-                          color="error"
-                          size="small"
-                          onClick={async () => {
-                            const updated = await updateTimesheetStatus(ts.timesheet_id, "rejected");
-                            if (updated) {
-                              setEmployeeTimesheets(prev => prev.filter(t => t.timesheet_id !== ts.timesheet_id));
-                              setAllTimesheets(prev => prev.filter(t => t.timesheet_id !== ts.timesheet_id));
-                            }
-                          }}
-                          disabled={ts.status === 'rejected'}
-                        >
-                          Reject
-                        </Button>
+                          <MoreVert />
+                        </IconButton>
                       </TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-          <Button variant="contained" color="primary" onClick={() => setIsModalOpen(false)}>Close</Button>
-        </Box>
-      </Modal>
+                  );
+                })
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+      
+      {/* Menu for Actions */}
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleMenuClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        <MenuItem onClick={() => handleStatusUpdate('approved')}>
+          <ListItemIcon>
+            <CheckCircle color="success" />
+          </ListItemIcon>
+          <ListItemText>Approve</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={() => handleStatusUpdate('rejected')}>
+          <ListItemIcon>
+            <Cancel color="error" />
+          </ListItemIcon>
+          <ListItemText>Reject</ListItemText>
+        </MenuItem>
+      </Menu>
     </Box>
   );
 };

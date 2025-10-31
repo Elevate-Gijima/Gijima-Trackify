@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@mui/lab": "^7.0.1-beta.18",
+    "@mui/x-date-pickers": "^8.15.0",
+    "date-fns": "^4.1.0"
+  }
+}

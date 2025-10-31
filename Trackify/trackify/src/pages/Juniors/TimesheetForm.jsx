@@ -14,12 +14,9 @@ import {
   TableRow,
   Snackbar,
   Alert,
-  IconButton,
 } from "@mui/material";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
 
-const API_BASE_URL = "http://localhost:8000"; // ⚙️ backend URL
+const API_BASE_URL = "http://127.0.0.1:8000"; // ⚙️ backend URL
 
 const TimesheetForm = ({ showOnlyRecords = false, onBack }) => {
   const [formData, setFormData] = useState({
@@ -30,27 +27,27 @@ const TimesheetForm = ({ showOnlyRecords = false, onBack }) => {
   });
   const [records, setRecords] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
-  const [editingIndex, setEditingIndex] = useState(null);
 
-  // Load timesheets from backend
+  // Note: Since we only have POST endpoint, we'll remove the fetch functionality
+  // Timesheets will be displayed only after creation
   useEffect(() => {
+    if (!showOnlyRecords) return;
     const fetchTimesheets = async () => {
       const token = localStorage.getItem("access_token");
       if (!token) return;
       try {
-        const response = await fetch(`${API_BASE_URL}/timesheets/`, {
+        const response = await fetch("http://127.0.0.1:8000/timesheets", {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!response.ok) throw new Error("Failed to load timesheets");
         const data = await response.json();
         setRecords(data);
       } catch (err) {
-        console.error(err);
         setSnackbar({ open: true, message: err.message, severity: "error" });
       }
     };
     fetchTimesheets();
-  }, []);
+  }, [showOnlyRecords]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -60,6 +57,7 @@ const TimesheetForm = ({ showOnlyRecords = false, onBack }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Basic validation
     if (formData.clock_out <= formData.clock_in) {
       setSnackbar({ open: true, message: "Clock Out must be after Clock In!", severity: "error" });
       return;
@@ -72,82 +70,45 @@ const TimesheetForm = ({ showOnlyRecords = false, onBack }) => {
     }
 
     try {
-      const payload = { ...formData };
-      let response;
-
-      if (editingIndex !== null) {
-        // Update existing timesheet
-        const record = records[editingIndex];
-        response = await fetch(`${API_BASE_URL}/timesheets/${record.timesheet_id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-      } else {
-        // Create new timesheet
-        response = await fetch(`${API_BASE_URL}/timesheets/`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-      }
+      // Create new timesheet using the new endpoint
+      const response = await fetch(`${API_BASE_URL}/timesheets/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(formData),
+      });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.detail || "Failed to save timesheet");
+        throw new Error(error.detail || "Failed to create timesheet");
       }
 
       const savedRecord = await response.json();
-      const updatedRecords = [...records];
-      if (editingIndex !== null) {
-        updatedRecords[editingIndex] = savedRecord;
-        setEditingIndex(null);
-      } else {
-        updatedRecords.push(savedRecord);
-      }
-
-      setRecords(updatedRecords);
-      setFormData({ date: "", clock_in: "", clock_out: "", description: "" });
-      setSnackbar({ open: true, message: "Timesheet saved successfully!", severity: "success" });
-    } catch (err) {
-      console.error(err);
-      setSnackbar({ open: true, message: err.message, severity: "error" });
-    }
-  };
-
-  const handleEdit = (index) => {
-    const record = records[index];
-    setFormData({
-      date: record.date,
-      clock_in: record.clock_in,
-      clock_out: record.clock_out,
-      description: record.description,
-    });
-    setEditingIndex(index);
-  };
-
-  const handleDelete = async (index) => {
-    const token = localStorage.getItem("access_token");
-    if (!token) {
-      setSnackbar({ open: true, message: "Please log in first.", severity: "error" });
-      return;
-    }
-
-    const record = records[index];
-    try {
-      const res = await fetch(`${API_BASE_URL}/timesheets/${record.timesheet_id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+      
+      // Update or add to local records for display
+      let wasUpdate = false;
+      setRecords(prev => {
+        const existingIndex = prev.findIndex(r => r.timesheet_id === savedRecord.timesheet_id);
+        if (existingIndex >= 0) {
+          // Update existing record
+          wasUpdate = true;
+          const updated = [...prev];
+          updated[existingIndex] = savedRecord;
+          return updated;
+        } else {
+          // Add new record
+          return [savedRecord, ...prev];
+        }
       });
-      if (!res.ok) throw new Error("Failed to delete timesheet");
-      setRecords(records.filter((_, idx) => idx !== index));
-      setSnackbar({ open: true, message: "Timesheet deleted!", severity: "info" });
+      
+      // Reset form
+      setFormData({ date: "", clock_in: "", clock_out: "", description: "" });
+      const message = wasUpdate 
+        ? "Timesheet updated and resubmitted successfully!" 
+        : "Timesheet submitted successfully!";
+      setSnackbar({ open: true, message, severity: "success" });
     } catch (err) {
       console.error(err);
       setSnackbar({ open: true, message: err.message, severity: "error" });
@@ -174,28 +135,28 @@ const TimesheetForm = ({ showOnlyRecords = false, onBack }) => {
                 <TextField label="Clock Out Time" type="time" name="clock_out" value={formData.clock_out} onChange={handleChange} InputLabelProps={{ shrink: true }} required />
                 <TextField label="Project Description" name="description" multiline rows={3} value={formData.description} onChange={handleChange} placeholder="Describe what you worked on..." required />
                 <Button type="submit" variant="contained" sx={{ backgroundColor: "navy", color: "white", "&:hover": { backgroundColor: "#001f3f" } }}>
-                  {editingIndex !== null ? "Update" : "Submit"}
+                  Submit Timesheet
                 </Button>
               </Stack>
             </form>
           </>
         )}
 
-        {records.length > 0 && (
+        {showOnlyRecords && records.length > 0 && (
           <>
-            <Typography variant="h6" sx={{ mt: 4, mb: 2, textAlign: "center", color: "navy", fontWeight: "bold" }}>
-              My Previous Timesheets
+            <Typography variant="h5" sx={{ mb: 3, textAlign: "center", color: "navy", fontWeight: "bold" }}>
+              My Timesheets
             </Typography>
-
-            <TableContainer component={Paper} sx={{ maxHeight: 300 }}>
+            <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
               <Table stickyHeader>
                 <TableHead>
                   <TableRow>
                     <TableCell>Date</TableCell>
                     <TableCell>Clock In</TableCell>
                     <TableCell>Clock Out</TableCell>
+                    <TableCell>Hours</TableCell>
                     <TableCell>Description</TableCell>
-                    <TableCell>Actions</TableCell>
+                    <TableCell>Status</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -204,10 +165,19 @@ const TimesheetForm = ({ showOnlyRecords = false, onBack }) => {
                       <TableCell>{rec.date}</TableCell>
                       <TableCell>{rec.clock_in}</TableCell>
                       <TableCell>{rec.clock_out}</TableCell>
+                      <TableCell>{rec.total_hours || 'N/A'}</TableCell>
                       <TableCell>{rec.description}</TableCell>
                       <TableCell>
-                        <IconButton onClick={() => handleEdit(idx)} color="primary"><EditIcon /></IconButton>
-                        <IconButton onClick={() => handleDelete(idx)} color="error"><DeleteIcon /></IconButton>
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            color: rec.status === 'approved' ? 'green' : 
+                                  rec.status === 'rejected' ? 'red' : 'orange',
+                            fontWeight: 'bold'
+                          }}
+                        >
+                          {rec.status || 'pending'}
+                        </Typography>
                       </TableCell>
                     </TableRow>
                   ))}
