@@ -7,7 +7,8 @@ import enum
 class RoleEnum(str, enum.Enum):
     employee = "employee"
     manager = "manager"
-    administrator = "administrator"
+    admin = "admin"
+    administrator = "administrator"  # legacy value kept for backward compatibility
 
 class StatusEnum(str, enum.Enum):
     pending = "pending"

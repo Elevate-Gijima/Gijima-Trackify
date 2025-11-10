@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import Swal from 'sweetalert2';
-import { Box, TextField, Button, Typography, Paper } from '@mui/material';
+import { Box, TextField, Button, Typography, Paper, Stack } from '@mui/material';
+import AnalogClock from './DigitalClock';
 
 const navy = '#001f3f';
 
@@ -16,10 +17,10 @@ const Login = () => {
     e.preventDefault();
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/login', {
+      const response = await fetch('http://127.0.0.1:8000/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }), // Must match backend
+        body: JSON.stringify({ email, password }),
       });
 
       if (!response.ok) {
@@ -29,11 +30,12 @@ const Login = () => {
 
       const data = await response.json();
 
-      // Save token, role, name in localStorage
+      // Save token and user details in localStorage
       localStorage.setItem('access_token', data.access_token);
-      localStorage.setItem('role', data.role);
       localStorage.setItem('name', data.name);
       localStorage.setItem('surname', data.surname);
+      localStorage.setItem('email', data.email);
+      localStorage.setItem('role', data.role);
 
       login(); // Update auth context
 
@@ -44,10 +46,13 @@ const Login = () => {
         showConfirmButton: false,
       });
 
+      // Normalize role for comparison
+      const normalizedRole = data.role?.replace('RoleEnum.', '') || data.role;
+      
       // Redirect based on role
-      if (data.role === 'employee') navigate('/home');
-      else if (data.role === 'manager') navigate('/manager');
-      else if (data.role === 'admin') navigate('/admin');
+      if (normalizedRole === 'employee') navigate('/home');
+      else if (normalizedRole === 'manager') navigate('/manager');
+      else if (normalizedRole === 'admin' || normalizedRole === 'administrator') navigate('/admin');
       else navigate('/home');
 
     } catch (error) {
@@ -72,38 +77,68 @@ const Login = () => {
     >
       <Paper 
         elevation={6} 
-        sx={{ padding: 4, width: 320, bgcolor: 'white', borderRadius: 2, textAlign: 'center' }}
+        sx={{ 
+          padding: 4, 
+          width: { xs: '100%', md: 800 }, 
+          bgcolor: 'white', 
+          borderRadius: 2, 
+          display: 'flex',
+          flexDirection: { xs: 'column', md: 'row' },
+          alignItems: 'center',
+          gap: 4,
+          minHeight: 500,
+        }}
       >
-        <Typography variant="h5" gutterBottom sx={{ color: navy, fontWeight: 'bold' }}>
-          Welcome to Trackify
-        </Typography>
+        {/* Login Form */}
+        <Box sx={{ flex: 1, textAlign: 'center' }}>
+          <Typography variant="h5" gutterBottom sx={{ color: navy, fontWeight: 'bold' }}>
+            Welcome to Trackify
+          </Typography>
 
-        <Typography variant="h4" gutterBottom sx={{ color: navy }}>
-          Login
-        </Typography>
-
-        <form onSubmit={handleSubmit} noValidate>
-          <TextField
-            label="Email"
-            variant="outlined"
-            fullWidth
-            margin="normal"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <TextField
-            label="Password"
-            type="password"
-            variant="outlined"
-            fullWidth
-            margin="normal"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <Button type="submit" variant="contained" fullWidth sx={{ mt: 3, bgcolor: navy }}>
+          <Typography variant="h4" gutterBottom sx={{ color: navy }}>
             Login
-          </Button>
-        </form>
+          </Typography>
+
+          <form onSubmit={handleSubmit} noValidate>
+            <TextField
+              label="Email"
+              variant="outlined"
+              fullWidth
+              margin="normal"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <TextField
+              label="Password"
+              type="password"
+              variant="outlined"
+              fullWidth
+              margin="normal"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <Button type="submit" variant="contained" fullWidth sx={{ mt: 3, bgcolor: navy }}>
+              Login
+            </Button>
+            <Box sx={{ mt: 2, textAlign: 'center' }}>
+              <Link 
+                to="/forgot-password" 
+                style={{ 
+                  color: navy, 
+                  textDecoration: 'none',
+                  fontSize: '14px'
+                }}
+              >
+                Forgot Password?
+              </Link>
+            </Box>
+          </form>
+        </Box>
+
+        {/* Analog Clock */}
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+          <AnalogClock />
+        </Box>
       </Paper>
     </Box>
   );
