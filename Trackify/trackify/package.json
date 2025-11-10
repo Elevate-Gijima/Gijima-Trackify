@@ -47,6 +47,6 @@
     ]
   },
   "devDependencies": {
-    "cypress": "^15.5.0"
+    "webpack": "^5.102.1"
   }
 }

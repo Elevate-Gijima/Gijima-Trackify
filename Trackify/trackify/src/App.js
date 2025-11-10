@@ -4,7 +4,6 @@ import { AuthProvider } from './components/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
 import Login from './components/Login';
-import ForgotPassword from './components/ForgotPassword';
 import TimesheetForm from './pages/Juniors/TimesheetForm';
 import LandingPage from './pages/Juniors/JuniorHomePage';
 import ManagerDashboard from './pages/Line Manager/TeamTimesheets';
@@ -14,7 +13,7 @@ import EmployeeTimesheetHistory from './pages/Juniors/EmployeeTimesheetHistory';
 
 const AppContent = () => {
   const location = useLocation();
-  const hideNavbar = location.pathname === '/login' || location.pathname === '/' || location.pathname === '/forgot-password';
+  const hideNavbar = location.pathname === '/login' || location.pathname === '/';
 
   return (
     <>
@@ -23,8 +22,6 @@ const AppContent = () => {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-
         {/* Employee routes */}
         <Route
           path="/home"

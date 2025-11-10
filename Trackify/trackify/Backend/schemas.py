@@ -23,13 +23,6 @@ class AuthResponse(BaseModel):
     email: str
     role: str
 
-class ForgotPasswordRequest(BaseModel):
-    email: str
-
-class ForgotPasswordResponse(BaseModel):
-    message: str
-
-
 # ===================== User / Employee =====================
 class UserBase(BaseModel):
     email: str

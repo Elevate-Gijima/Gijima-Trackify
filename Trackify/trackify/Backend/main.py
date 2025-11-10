@@ -22,20 +22,35 @@ app = FastAPI(title="Gijima Timesheet API")
 # ------------------------------------------------------------
 # CORS Configuration
 # ------------------------------------------------------------
+# For development: Allow all origins (change in production)
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173",
-    "http://127.0.0.1:5173"
+    "http://127.0.0.1:5173",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,       # Specific origins allowed
+    allow_origins=origins,        # Specific origins allowed
     allow_credentials=True,
-    allow_methods=["*"],         # Allow all HTTP methods (GET, POST, PUT, DELETE, etc.)
-    allow_headers=["*"],         # Allow all headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],  # Explicitly allow OPTIONS for preflight
+    allow_headers=["*"],           # Allow all headers including Authorization
+    expose_headers=["*"],          # Expose all headers in response
 )
+
+# ------------------------------------------------------------
+# Health Check Endpoint
+# ------------------------------------------------------------
+@app.get("/")
+def root():
+    return {"message": "Gijima Timesheet API is running", "status": "ok"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy", "cors_enabled": True}
 
 # ------------------------------------------------------------
 # Include Routers
