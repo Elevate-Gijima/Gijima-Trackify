@@ -14,7 +14,11 @@ import EmployeeTimesheetHistory from './pages/Juniors/EmployeeTimesheetHistory';
 
 const AppContent = () => {
   const location = useLocation();
+<<<<<<< HEAD
+  const hideNavbar = location.pathname === '/login' || location.pathname === '/';
+=======
   const hideNavbar = location.pathname === '/login' || location.pathname === '/' || location.pathname === '/forgot-password';
+>>>>>>> 84b5aabcebaa3c312af98ed3e7f2b997d917542e
 
   return (
     <>
@@ -23,8 +27,11 @@ const AppContent = () => {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<Login />} />
+<<<<<<< HEAD
+=======
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
+>>>>>>> 84b5aabcebaa3c312af98ed3e7f2b997d917542e
         {/* Employee routes */}
         <Route
           path="/home"

@@ -89,6 +89,7 @@ const JuniorHomePage = () => {
             <TableHead>
               <TableRow>
                 <TableCell>Date</TableCell>
+                <TableCell>Clock In</TableCell>
                 <TableCell>Clock Ins</TableCell>
                 <TableCell>Clock Out</TableCell>
                 <TableCell>Hours</TableCell>

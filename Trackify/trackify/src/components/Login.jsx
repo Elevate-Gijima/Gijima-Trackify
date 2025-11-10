@@ -120,6 +120,8 @@ const Login = () => {
             <Button type="submit" variant="contained" fullWidth sx={{ mt: 3, bgcolor: navy }}>
               Login
             </Button>
+<<<<<<< HEAD
+=======
             <Box sx={{ mt: 2, textAlign: 'center' }}>
               <Link 
                 to="/forgot-password" 
@@ -132,6 +134,7 @@ const Login = () => {
                 Forgot Password?
               </Link>
             </Box>
+>>>>>>> 84b5aabcebaa3c312af98ed3e7f2b997d917542e
           </form>
         </Box>
 
