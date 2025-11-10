@@ -7,7 +7,12 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.4",
     "@mui/material": "^7.3.4",
+<<<<<<< HEAD
     "@mui/x-date-pickers": "^8.15.0",
+=======
+    "@mui/x-date-pickers": "^8.16.0",
+    "@mui/x-date-pickers-pro": "^8.16.0",
+>>>>>>> 84b5aabcebaa3c312af98ed3e7f2b997d917542e
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
@@ -18,7 +23,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.9.4",
-    "react-scripts": "5.0.1",
+    "react-scripts": "^5.0.1",
     "sweetalert2": "^11.26.2",
     "web-vitals": "^2.1.4"
   },
@@ -47,6 +52,10 @@
     ]
   },
   "devDependencies": {
+<<<<<<< HEAD
     "webpack": "^5.102.1"
+=======
+    "cypress": "^15.5.0"
+>>>>>>> 84b5aabcebaa3c312af98ed3e7f2b997d917542e
   }
 }

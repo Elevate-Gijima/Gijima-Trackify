@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import Swal from 'sweetalert2';
 import { Box, TextField, Button, Typography, Paper, Stack } from '@mui/material';
@@ -120,6 +120,21 @@ const Login = () => {
             <Button type="submit" variant="contained" fullWidth sx={{ mt: 3, bgcolor: navy }}>
               Login
             </Button>
+<<<<<<< HEAD
+=======
+            <Box sx={{ mt: 2, textAlign: 'center' }}>
+              <Link 
+                to="/forgot-password" 
+                style={{ 
+                  color: navy, 
+                  textDecoration: 'none',
+                  fontSize: '14px'
+                }}
+              >
+                Forgot Password?
+              </Link>
+            </Box>
+>>>>>>> 84b5aabcebaa3c312af98ed3e7f2b997d917542e
           </form>
         </Box>
 
