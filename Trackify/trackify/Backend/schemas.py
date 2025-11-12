@@ -2,7 +2,6 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import date, time
 
-
 # ===================== Authentication =====================
 class LoginRequest(BaseModel):
     email: str
@@ -22,12 +21,6 @@ class AuthResponse(BaseModel):
     surname: str
     email: str
     role: str
-
-rgotPasswordRequest(BaseModel):
-    email: str
-
-class ForgotPasswordResponse(BaseModel):
-    message: str
 
 # ===================== User / Employee =====================
 class UserBase(BaseModel):
