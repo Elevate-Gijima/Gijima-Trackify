@@ -7,7 +7,5 @@ python-jose
 passlib[bcrypt]
 bcrypt<4
 python-dotenv
-<<<<<<< HEAD
+
 sendgrid
-=======
->>>>>>> 84b5aabcebaa3c312af98ed3e7f2b997d917542e
