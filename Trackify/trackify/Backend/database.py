@@ -4,11 +4,17 @@ from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 
-load_dotenv()  # load environment variables from .env
+load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root:Root@123@localhost/gijima_timesheet")
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+psycopg2://neondb_owner:npg_NuEkC2JxrZe0@ep-divine-smoke-a483jqek-pooler.us-east-1.aws.neon.tech/neondb?sslmode=require",  # Neon default
+)
 
-engine = create_engine(DATABASE_URL)
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is not set. Please configure your Neon connection string.")
+
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
