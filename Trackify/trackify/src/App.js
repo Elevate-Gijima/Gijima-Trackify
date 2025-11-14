@@ -29,7 +29,7 @@ const AppContent = () => {
         <Route path="/" element={<Login />} />
 
 
-        <Route path="/forgot-password" element={<ForgotPassword />} />
+      
 
         {/* Employee routes */}
         <Route
